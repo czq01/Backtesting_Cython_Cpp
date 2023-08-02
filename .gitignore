@@ -1,0 +1,17 @@
+# 配置文件夹及中间产物
+.vscode/
+.vs/
+__pycache__/
+
+# Cmake build文件夹
+build/
+out/
+build/
+
+# 回测结果及策略
+backtest/
+strategy.hpp
+*.ipynb
+*.png
+*.txt
+*.csv
