@@ -1,6 +1,5 @@
 import datetime
 import pandas as pd
-from barmanager import BarManager, ArrayManager
 import talib
 import matplotlib.pyplot as plt
 import multiprocessing as mp

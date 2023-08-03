@@ -3,7 +3,7 @@
 #include <strategy.hpp>
 #include <chrono>
 // #include <Windows.h>
-// #include <entry.hpp>
+#include <entry.hpp>
 // #include <research.cpp>
 #undef min
 #undef max
@@ -40,16 +40,17 @@ int main(int, char**){
     std::vector<std::string> cols{"open","close", "high", "low", "minute", "hour", "H", "M",
         "L", "MACD", "rsi_5", "bolling_beta_5", "bolling_beta_10"};
     DataFrame t(cols);
-    int i=10000;
+    int i=5000;
     int j=0;
-    scanf_s("%d %d", &i, &j);
+    // scanf_s("%d %d", &i, &j);
     printf("got: %d", i);
     std::vector<OutcomeTuple> outcomes; outcomes.resize(20);
     // i=10000;
     for (int p=0; p<i; p++) {
         std::string date = "2023-12-12";
         std::string datetime = "2023-12-12 12:12:12";
-        t.append(date, 0x0, datetime, DoubleArr{1423, 1234, 2345,1232, 12, 10, 1234, 2345, 3245, 1.2, 34, 0.2, -0.1});
+        t.append(date, 0x0, datetime, DoubleArr{1423, 1234, 2345, 1232, 12, 10, 1234, 1234, 1233, 1.2, 34, 0.2, -0.1});
+        t.append(date, 0x0, datetime, DoubleArr{1423, 1236, 2345, 1232, 12, 10, 1235, 1234, 1233, 1.2, 34, 0.2, -0.1});
     }
 
     printf("start_calculation\n");
@@ -64,6 +65,7 @@ int main(int, char**){
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
-    printf("time: %d ns. %d\n", (int)(duration.count()/100000000), flag);
+    printf("time: %d ns. %d\n", (int)(duration.count()/50000000), flag);
+    printf("%lf\n", outcomes[0].balance);
     return 0;
 }

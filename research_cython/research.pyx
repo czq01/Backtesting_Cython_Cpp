@@ -57,8 +57,15 @@ cdef extern from "include/strategy.hpp":
         void on_bar(const Series_plus&) noexcept
         void renew(double val, double macd, double rsi, double crsi, const double beta[2][2]) noexcept
 
-    cdef cppclass Bolling_Trend_upsert(BollingTrendMiddleClose):
+    cdef cppclass Bolling_Trend_upsert:
         Bolling_Trend_upsert()
+        double drawdown, val, macd_shreshod, rsi_shreshod, balance, fee, pos_high, pos_low
+        int pos, slip, earn, earn_change
+        double beta_shreshod[2][2]
+        bint buy_sig, short_sig, cover_sig, sell_sig
+        void on_bar(const Series_plus&) noexcept
+        void renew(double val, double macd, double rsi, double crsi, const double beta[2][2]) noexcept
+
 
 cdef extern from "include/entry.hpp":
     void run_backtest_no_df(const DataFrame& cdata, const vector[ParamTuple]& params, vector[OutcomeTuple]& outcomes,
@@ -79,8 +86,8 @@ cdef void param_to_cparam(object param, vector[ParamTuple]& cparam):
 
 
 cpdef void run(object data, list queue, res_queue, columns, args, double years, bint get_df=True):
-    cdef BollingTrendMiddleClose st
-    cdef double max_drawdown, draw_down, val, macd, rsi
+    cdef Bolling_Trend_upsert st
+    cdef double max_drawdown, val, macd, rsi
     cdef int count
     cdef int i
     cdef vector[double] balanceArr = [0]
@@ -109,7 +116,7 @@ cpdef void run(object data, list queue, res_queue, columns, args, double years, 
         param_queue.back().beta[1][0] = beta[1][0]
 
     if get_df:
-        st = BollingTrendMiddleClose()
+        st = Bolling_Trend_upsert()
         for i in range(param_queue.size()):
             res = []
             st.renew(param_queue[i].val, param_queue[i].macd,
@@ -119,16 +126,14 @@ cpdef void run(object data, list queue, res_queue, columns, args, double years, 
             count = 0
             divide = cdata.size()>>4
             balanceArr.clear()
-            balanceArr.reserve(16)
+            balanceArr.reserve(20)
             while(cdata_iter != cdata.values().const_end()):
                 st.on_bar(deref(cdata_iter))
                 res.append((deref(cdata_iter).datetime, st.pos, st.fee, st.slip, st.balance,
                         st.earn, st.drawdown, st.buy_sig, st.short_sig, st.sell_sig, st.cover_sig,
                         st.pos_high, st.pos_low, st.earn_change))
                 preinc(cdata_iter)
-                # res.append(data_t)
-                draw_down = st.drawdown
-                max_drawdown = max(draw_down, max_drawdown)
+                max_drawdown = max(st.drawdown, max_drawdown)
                 preinc(count)
                 if (count == divide):
                     balanceArr.push_back(st.balance)
@@ -142,7 +147,7 @@ cpdef void run(object data, list queue, res_queue, columns, args, double years, 
     else:
         _tmp2 = <PyObject*>args
         run_backtest_no_df(cdata, param_queue, outcomes, result, years, _tmp2)
-        set_val(res_queue,outcomes, result)
+        set_val(res_queue, outcomes, result)
 
 
 
