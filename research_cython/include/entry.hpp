@@ -32,7 +32,8 @@ void set_list (const std::vector<ParamTuple>& params, std::vector<PyObject*>& re
 void backtest_threads_no_df(const DataFrame& cdata, const std::vector<ParamTuple>& params,
             std::vector<OutcomeTuple>& outcomes, PyObject* args,const double& years, int start, int end ) noexcept {
     std::vector<double> _CACHE_ALIGN ratio_vec; ratio_vec.reserve(20);
-    Bolling_Trend_upsert _CACHE_ALIGN st;
+    BaseStrategy * stp = getInstance();
+    BaseStrategy& st = *stp;
     const int divide = (cdata.size()>>4);
     for (int i=start; i<end; i++) {
         const ParamTuple& param = params[i];
@@ -48,9 +49,10 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<ParamTuple
         }
         double ratio = sharpe_ratio(ratio_vec, 0.02, years);
         outcomes[i] = std::forward<const OutcomeTuple>(
-            OutcomeTuple{st.pos, st.fee, st.slip, st.balance, st.earn, max_drawdown,st.pos_high, st.pos_low, st.earn_change, ratio}
+            OutcomeTuple{st.pos, st.fee, (int)st.slip, st.balance, (int)st.earn, max_drawdown,st.pos_high, st.pos_low, (int)st.earn_change, ratio}
         );
     }
+    destroyInstance(stp);
 }
 
 void run_backtest_no_df(const DataFrame& cdata, const std::vector<ParamTuple>& params, std::vector<OutcomeTuple>& outcomes,
@@ -73,14 +75,15 @@ void run_backtest_no_df(const DataFrame& cdata, const std::vector<ParamTuple>& p
 }
 
 // Entry: (with DF)
-void get_PyList_df(const BollingTrendMiddleClose& st, std::vector<PyObject*> df, int size) {
+void get_PyList_df(const BaseStrategy& st, std::vector<PyObject*> df, int size) {
     new_list(df, 14, size);
 }
 
 void backtest_threads_with_df(const DataFrame& cdata, const std::vector<ParamTuple>& params,
             std::vector<OutcomeTuple>& outcomes, PyObject* args,const double& years, int start, int end ) noexcept {
     std::vector<double> _CACHE_ALIGN ratio_vec; ratio_vec.reserve(20);
-    Bolling_Trend_upsert _CACHE_ALIGN st;
+    BaseStrategy * stp = getInstance();
+    BaseStrategy& st = *stp;
     std::vector<PyObject*> size;
     const int divide = (cdata.values().size()>>4);
     for (int i=start; i<end; i++) {
@@ -97,9 +100,10 @@ void backtest_threads_with_df(const DataFrame& cdata, const std::vector<ParamTup
         }
         double ratio = sharpe_ratio(ratio_vec, 0.02, years);
         outcomes[i] = std::forward<const OutcomeTuple>(
-            OutcomeTuple{st.pos, st.fee, st.slip, st.balance, st.earn, max_drawdown,st.pos_high, st.pos_low, st.earn_change, ratio}
+            OutcomeTuple{st.pos, st.fee, (int)st.slip, st.balance, (int)st.earn, max_drawdown,st.pos_high, st.pos_low, (int)st.earn_change, ratio}
         );
     }
+    destroyInstance(stp);
 }
 
 void run_backtest_df(const DataFrame& cdata, const std::vector<ParamTuple>& params, std::vector<OutcomeTuple>& outcomes,

@@ -21,11 +21,17 @@ public:
 
     ChangeMain(const char (*SA_change)[11]): change(SA_change) {}
     bool is_change(const std::string& val) {
-        register bool flag = (val.size()==11)&(
-            (val[3]==(*change)[3])&(val[5]==(*change)[5])&(val[6]==(*change)[6])&(val[8]==(*change)[8])&(val[9]==(*change)[9]));
+        register bool flag = (val.size()==11)&&(
+            (val[3]==(*change)[3])&&(val[5]==(*change)[5])&&(val[6]==(*change)[6])
+                    &&(val[8]==(*change)[8])&&(val[9]==(*change)[9]));
         // time is moving at one direction
-        change += (val[3]>(*change)[3])|(val[5]==(*change)[5])|(val[6]==(*change)[6])|(val[8]==(*change)[8])|(val[9]==(*change)[9]);
+        change += (val[3]>(*change)[3])||(val[5]<=(*change)[5])||(val[6]<=(*change)[6])
+                                ||(val[8]>(*change)[8])||(val[9]>(*change)[9]);
         return flag;
+    }
+
+    std::string get_next_date() {
+        return std::string(*change);
     }
 };
 

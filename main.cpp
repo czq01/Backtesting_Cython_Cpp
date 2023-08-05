@@ -10,7 +10,8 @@
 
 
 void test(const DataFrame& df, std::vector<OutcomeTuple>& outcomes,const ParamTuple& t, int i) {
-    Bolling_Trend_upsert st;
+    BaseStrategy * stp = getInstance();
+    BaseStrategy& st = *stp;
     st.renew(t.val, t.macd, t.rsi, t.crsi, t.beta);
     int count=0;
     double max_drawdown=0;
@@ -24,8 +25,9 @@ void test(const DataFrame& df, std::vector<OutcomeTuple>& outcomes,const ParamTu
     }
     double ratio = sharpe_ratio(ratio_vec, 0.02, 3.5);
     outcomes[i] = std::forward<const OutcomeTuple>(
-            OutcomeTuple{st.pos, st.fee, st.slip, st.balance, st.earn, max_drawdown,st.pos_high, st.pos_low, st.earn_change, ratio}
+            OutcomeTuple{st.pos, st.fee, (int)st.slip, st.balance, (int)st.earn, max_drawdown,st.pos_high, st.pos_low, (int)st.earn_change, ratio}
     );
+    destroyInstance(stp);
 }
 
 
@@ -40,7 +42,7 @@ int main(int, char**){
     std::vector<std::string> cols{"open","close", "high", "low", "minute", "hour", "H", "M",
         "L", "MACD", "rsi_5", "bolling_beta_5", "bolling_beta_10"};
     DataFrame t(cols);
-    int i=5000;
+    int i=10000;
     int j=0;
     // scanf_s("%d %d", &i, &j);
     printf("got: %d", i);
@@ -55,17 +57,25 @@ int main(int, char**){
 
     printf("start_calculation\n");
     bool flag = true;
+    // int i;
+    // std::string val{"2021-12-29"};
+    // char s[12];
+    // scanf_s("%d", &i);
     auto start_time = std::chrono::high_resolution_clock::now();
+    ChangeMain cm(SA_change);
     for (; i; i--) {
         // data += sharpe_ratio(balance, 0.02, 3.5);
         // flag &= value_in_arr(vals[i].c_str(), SA_change);
         // flag &= value_in_arr(val.c_str(), SA_change);
         // flag &= (bool)SA_changes.count(val);
+        // flag &= cm.is_change(val);
+
         test(t, outcomes, r, j);
     }
+    // flag = (val[3]>(*SA_change)[3]) | (val[5]>(*SA_change)[5]) | (val[6]>(*SA_change)[6])|(val[8]>(*SA_change)[8])|(val[9]>(*SA_change)[9]);
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
-    printf("time: %d ns. %d\n", (int)(duration.count()/50000000), flag);
+    printf("time: %d ns. %d %s\n", (int)(duration.count()/200000000), flag, cm.get_next_date().c_str());
     printf("%lf\n", outcomes[0].balance);
     return 0;
 }
