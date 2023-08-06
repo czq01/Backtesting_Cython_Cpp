@@ -8,9 +8,8 @@ ext_modules = [
     setuptools.Extension(
         "research",
         ["research.pyx"],
-        extra_compile_args=['/O2'],
+        extra_compile_args=['/Ot', "/std:c++17"],
         include_dirs=[numpy.get_include()],
-
     )
 ]
 

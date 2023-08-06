@@ -133,7 +133,6 @@ cpdef void run(object data, list params, res_queue, columns, args, double years,
     cols = [line.encode('utf-8') for line in data.columns[3:]]
     cdata = DataFrame(<vector[string]>cols)
     data_to_cdata(data, cdata);
-    data.drop(data.index, inplace=True);
     param_to_cparam(params, cparam)
 
     if get_df:

@@ -30,7 +30,7 @@ void set_list (const std::vector<ParamTuple>& params, std::vector<PyObject*>& re
 
 // Entry: (no df)
 void backtest_threads_no_df(const DataFrame& cdata, const std::vector<ParamTuple>& params,
-            std::vector<OutcomeTuple>& outcomes, PyObject* args,const double& years, int start, int end ) noexcept {
+            std::vector<OutcomeTuple>& outcomes, double years, int start, int end ) noexcept {
     std::vector<double> _CACHE_ALIGN ratio_vec; ratio_vec.reserve(20);
     BaseStrategy * stp = getInstance();
     BaseStrategy& st = *stp;
@@ -57,7 +57,7 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<ParamTuple
 
 void run_backtest_no_df(const DataFrame& cdata, const std::vector<ParamTuple>& params, std::vector<OutcomeTuple>& outcomes,
                         std::vector<PyObject*>& result_list, const double& years, PyObject* args) noexcept {
-    constexpr int THREAD_NUM=8;
+    constexpr int THREAD_NUM=4;
     outcomes.resize(params.size());
     new_list(result_list, 6, params.size());
     set_list(params, result_list, args);
@@ -65,9 +65,10 @@ void run_backtest_no_df(const DataFrame& cdata, const std::vector<ParamTuple>& p
     std::vector<std::thread> _CACHE_ALIGN ths;
     int divide_len = (params.size())/THREAD_NUM;
     for (int i=0; i<THREAD_NUM-1; i++) {
-        ths.emplace_back(std::thread(backtest_threads_no_df, cdata, std::ref(params), std::ref(outcomes), args, years, i*divide_len, (i+1)*divide_len));
+        ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(cdata), std::ref(params), std::ref(outcomes), years, i*divide_len, (i+1)*divide_len));
     }
-    ths.emplace_back(std::thread(backtest_threads_no_df, cdata, std::ref(params), std::ref(outcomes), args, years, (THREAD_NUM-1)*divide_len, params.size()));
+    ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(cdata), std::ref(params), std::ref(outcomes), years, (THREAD_NUM-1)*divide_len, params.size()));
+
     for (std::thread& i: ths) {
         i.join();
     }

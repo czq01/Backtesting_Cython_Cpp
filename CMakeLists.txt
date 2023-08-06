@@ -16,7 +16,7 @@ include_directories(
 )
 
 
-# add_compile_options(/O2)
+add_compile_options(/Ot /std:c++17 /arch:AVX)
 
 link_directories(
     C:/Users/ziqua/AppData/Local/Programs/Python/Python38/libs
@@ -25,7 +25,7 @@ link_libraries(python38)
 
 
 add_executable(teste main.cpp)
-# SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/PROFILE")
+SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/PROFILE")
 
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
