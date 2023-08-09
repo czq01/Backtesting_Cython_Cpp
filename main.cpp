@@ -20,11 +20,10 @@ void get_test_data(DataFrame& df, _Params& params, int length ) {
     for (int p=0; p<length; p++) {
         std::string date = "2023-12-12";
         std::string datetime = "2023-12-12 12:12:12";
-        df.append(date, 0, datetime, DoubleArr{1423, 1234, 2345, 1232, 12, 10, 1234, 1234, 1233, 1.2, 34, 0.2, -0.1});
-        df.append(date, 0, datetime, DoubleArr{1423, 1236, 2345, 1232, 12, 10, 1235, 1234, 1233, 1.2, 34, 0.2, -0.1});
+        df.append(date, datetime, DoubleArr{1423, 1234, 2345, 1232, 12, 10, 1234, 1234, 1233, 1.2, 34, 0.2, -0.1});
+        df.append(date, datetime, DoubleArr{1423, 1236, 2345, 1232, 12, 10, 1235, 1234, 1233, 1.2, 34, 0.2, -0.1});
     }
-    for (int i=0; i<500; i++) {
-        params.push_back(r);
+    for (int i=0; i<10000; i++) {
         params.push_back(r);
     }
 }
@@ -42,7 +41,7 @@ int main(int, char**){
     get_test_data(t, params, length);
 
     long long time = time_test(run_backtest_no_df, t, params, outcomes, result_list, 3.5, args);
-    printf("time: %lld ns.\n", time/1000);
+    printf("time: %lld ns.\n", time/10000/317520);
 
     Py_DECREF(args);
     Py_Finalize();

@@ -1,6 +1,6 @@
 
 #include <type_traits>
-#include <structure.hpp>
+#include "structure.hpp"
 
 #ifndef __UTIL_OWN
 #define __UTIL_OWN
@@ -36,6 +36,7 @@ long long time_test(Fn&& func, Args&& ...args) {
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
     return duration.count();
 }
+
 
 /* Get Mean Value of numbers*/
 inline double mean(const std::vector<double>& v) {

@@ -9,8 +9,7 @@ from libcpp.vector cimport vector
 from cpython.ref cimport Py_DECREF, PyObject
 from cython.operator cimport dereference as deref, preincrement as preinc
 
-
-cdef extern from 'include/util.hpp':
+cdef extern from "include/entry.hpp":
     cdef cppclass Series_plus:
         string datetime
         double get(string& key) noexcept
@@ -40,14 +39,10 @@ cdef extern from 'include/util.hpp':
         # DataFrame(const vector[string]& cols)
         DataFrame()
         DataFrame(const vector[string]&& cols)
-        void append(const string& datetime, PyObject* ori_date, const string& date,
-                    vector[double] && params)
+        void append(const string& datetime, const string& date, vector[double] && params)
         const vector[Series_plus]& values() const
         const size_t size() const
 
-    double sharpe_ratio(vector[double]& balance, double risk_free_rate, double years)
-
-cdef extern from "include/strategy.hpp":
     cdef cppclass BaseStrategy:
         BaseStrategy()
         double drawdown, val, macd_shreshod, rsi_shreshod, balance, fee, pos_high, pos_low
@@ -59,19 +54,18 @@ cdef extern from "include/strategy.hpp":
 
     BaseStrategy * getInstance() noexcept
     void destroyInstance(BaseStrategy *) noexcept
-
-cdef extern from "include/entry.hpp":
+    double sharpe_ratio(vector[double]& balance, double risk_free_rate, double years)
     void run_backtest_no_df(const DataFrame& cdata, const vector[ParamTuple]& params, vector[OutcomeTuple]& outcomes,
                     vector[PyObject*]& result, double years, PyObject* args) noexcept
+
 
 
 cdef void data_to_cdata(object data, DataFrame& cdata) noexcept:
     vals = data.values
     for line in vals:
         cdata.append(line[0].encode('utf-8'),
-                        <PyObject*>line[1],
-                        line[2].encode('utf-8'),
-                        <vector[double]> line[3:])
+                        line[1].encode('utf-8'),
+                        <vector[double]> line[2:])
 
 cdef void param_to_cparam(object param, vector[ParamTuple]& cparam):
     cdef double val, macd, rsi
@@ -93,6 +87,7 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[ParamTuple]& cparam, c
     cdef list res, outcome
     cdef int divide
     cdef double max_drawdown
+    cdef vector[Series_plus].const_iterator cdata_iter
 
     st = getInstance()
     for i in range(cparam.size()):
@@ -106,7 +101,7 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[ParamTuple]& cparam, c
         balanceArr.clear()
         balanceArr.reserve(20)
         while(cdata_iter != cdata.values().const_end()):
-            st.on_bar(deref(cdata_iter))
+            deref(st).on_bar(deref(cdata_iter))
             res.append((deref(cdata_iter).datetime, st.pos, st.fee, st.slip, st.balance,
                     st.earn, st.drawdown, st.buy_sig, st.short_sig, st.sell_sig, st.cover_sig,
                     st.pos_high, st.pos_low, st.earn_change))
@@ -121,16 +116,16 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[ParamTuple]& cparam, c
         sharp = sharpe_ratio(balanceArr, 0.02, 3.5)
         res_queue.put((df, outcome, (st.val, st.macd_shreshod, st.rsi_shreshod,
                         st.beta_shreshod), args, <object>cparam[i].idx, sharp))
+    destroyInstance(st)
 
 cpdef void run(object data, list params, res_queue, columns, args, double years, bint get_df=True):
     cdef vector[ParamTuple] cparam
     cdef DataFrame cdata
-    cdef vector[Series_plus].const_iterator cdata_iter
     cdef vector[PyObject*] result
     cdef PyObject*_tmp2
     cdef vector[OutcomeTuple] outcomes
 
-    cols = [line.encode('utf-8') for line in data.columns[3:]]
+    cols = [line.encode('utf-8') for line in data.columns[2:]]
     cdata = DataFrame(<vector[string]>cols)
     data_to_cdata(data, cdata);
     param_to_cparam(params, cparam)

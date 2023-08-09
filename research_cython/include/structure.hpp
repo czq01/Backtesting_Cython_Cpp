@@ -19,7 +19,6 @@ private:
     typedef std::vector<_String> _KeyArray;
     typedef std::unordered_map<_String, int> _IdxMap;
 
-    PyObject  *ori_date;
     _Array _CACHE_ALIGN params;
     _KeyArray *cols;
     _IdxMap* col_mapping;
@@ -40,12 +39,11 @@ private:
         this->macd = this->get("MACD");
     }
 
-    Series_plus(const _String& datetime, PyObject* ori_date, const _String& date,
-            _Array &&params, _KeyArray * cols, _IdxMap* col_mapping = 0) :
-        col_mapping(col_mapping), ori_date(ori_date),
+    Series_plus(const _String& datetime, const _String& date, _Array &&params,
+                _KeyArray * cols, _IdxMap* col_mapping = 0) :
+        col_mapping(col_mapping),
         date(date), datetime(datetime),
-        cols(cols),
-        params(std::forward<_Array&&>(params)) {
+        cols(cols), params(std::forward<_Array&&>(params)) {
         this->_update_values();
     }
 
@@ -102,10 +100,9 @@ public:
         }
     }
 
-    void append(const _String& datetime, PyObject* ori_date, const _String& date,
-            _Array && params) {
+    void append(const _String& datetime, const _String& date, _Array && params) {
         series.emplace_back(Series_plus{
-            datetime, ori_date, date, std::forward<_Array&&>(params),
+            datetime, date, std::forward<_Array&&>(params),
             &this->cols, &this->col_mapping
         });
     }

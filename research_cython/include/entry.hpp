@@ -57,7 +57,7 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<ParamTuple
 
 void run_backtest_no_df(const DataFrame& cdata, const std::vector<ParamTuple>& params, std::vector<OutcomeTuple>& outcomes,
                         std::vector<PyObject*>& result_list, const double& years, PyObject* args) noexcept {
-    constexpr int THREAD_NUM=4;
+    constexpr int THREAD_NUM=8;
     outcomes.resize(params.size());
     new_list(result_list, 6, params.size());
     set_list(params, result_list, args);
