@@ -61,8 +61,8 @@ public:
         earn = earn_change = balance = 0.0;
         slip = fee = drawdown = 0.0;
         cover_sig = short_sig= buy_sig = sell_sig=false;
-        static_cast<Child*>(this)->child_renew();
         static_cast<Child*>(this)->set_params(std::forward<Args>(args)...);
+        static_cast<Child*>(this)->child_renew();
     }
 
     // -----------------------

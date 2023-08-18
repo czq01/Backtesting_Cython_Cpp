@@ -102,6 +102,7 @@ class ArrayManager {
     double * closes;
     double sum;
     double sum_square;
+
 public:
     bool is_inited;
     int max_size;
@@ -124,9 +125,9 @@ public:
         am.closes = tmp;
     }
 
-    ArrayManager &ArrayManager::operator =(const ArrayManager &) = delete;
+    ArrayManager& operator=(const ArrayManager &) = delete;
 
-    ArrayManager &ArrayManager::operator =(ArrayManager && am) {
+    ArrayManager& operator=(ArrayManager && am) {
         max_size = am.max_size;
         pointer = am.pointer;
         is_inited = am.is_inited;
@@ -159,7 +160,7 @@ public:
 
     double get_mean() {return sum/max_size;}
 
-    double get_mean(int offset, int N) {
+    double get_mean(int N, int offset=0) {
         double _sum = 0;
         int _p = this->pointer; _p--;
         int n = N;
@@ -187,27 +188,62 @@ public:
         return _sum_sq/n;
     }
 
-    double EMA(int period, int offset=0) {
-        period++;
-        if (period>max_size-offset) {period=max_size-offset;}
-        int _p = pointer-period-offset;
-        if (_p<0) _p+=max_size;
-        double _ema = closes[_p];
-        period--; _p++;
-        while (period) {
-            if (_p == max_size){_p = 0;}
-            _ema = (_ema*(period-1) + closes[_p]*2)/(period+1);
-            period--; _p++;
-        }
-        return _ema;
-    }
-
-    // double get_macd() {}
-    double DIF(int fast=12, int slow=26) {
-        return EMA(26)-EMA(12);
-    }
-
     ~ArrayManager() {delete [] closes;}
+
+    friend class MACD_Calculator;
+};
+
+class MACD_Calculator {
+private:
+    int fast;
+    int slow;
+    int _count;
+    ArrayManager* am;
+public:
+    double EMA_fast;
+    double EMA_slow;
+    double MACD;
+    double DEA;
+    double DIF;
+
+    MACD_Calculator(): am(0), fast(0), slow(0) {}
+
+    MACD_Calculator(ArrayManager& am, int fast=12, int slow=26):
+        am(&am), fast(fast), slow(slow), _count(1), DEA(0),
+        EMA_fast(NAN), EMA_slow(NAN), MACD(NAN), DIF(NAN) {}
+
+    MACD_Calculator& operator=(MACD_Calculator&& mc) {
+        this->am = mc.am;
+        this->fast = mc.fast;
+        this->slow = mc.slow;
+    }
+
+    // Call function exactly after each am.update_bar()
+    constexpr void update() {
+        if (EMA_fast == NAN) [[unlikely]] {
+            EMA_fast = am->get_mean(fast);
+            EMA_slow = am->get_mean(slow);
+            DIF = EMA_fast - EMA_slow;
+        } else [[likely]] {
+            EMA_fast = (EMA_fast*(fast-1)+2*am->closes[am->pointer])/(fast+1);
+            EMA_slow = (EMA_slow*(slow-1)+2*am->closes[am->pointer])/(slow+1);
+            _count++;
+            if (_count < 9) {
+                DIF += EMA_fast-EMA_slow;
+            } else if (_count == 9) {
+                DIF += EMA_fast-EMA_slow;
+                MACD = DIF/9;
+                DEA = DIF-MACD;
+            } else {
+                MACD = (MACD*8 + DIF*2)/10;
+                DEA = DIF - MACD;
+            }
+        }
+    }
+
+
+
+
 };
 
 struct OutcomeTuple {
