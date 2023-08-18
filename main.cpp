@@ -3,47 +3,54 @@
 #include <chrono>
 #include <entry.hpp>
 
-
-typedef std::vector<ParamTuple> _Params;
+typedef std::vector<PyObject *> _Params;
 typedef std::vector<OutcomeTuple> _Outcomes;
 
 void get_test_data(DataFrame& df, _Params& params, int length ) {
-    PyObject * idx = PyLong_FromLong(0l);
-    df = DataFrame(std::vector<std::string>{"open","close", "high", "low", "minute", "hour", "H", "M",
-        "L", "MACD", "rsi_5", "bolling_beta_5", "bolling_beta_10"});
-    ParamTuple r(0, 0, 100, 0, idx); {
-        r.beta[0][0]=0;
-        r.beta[0][1]=0;
-        r.beta[1][0]=0;
-        r.beta[1][1]=0;
+    PyObject * param = PyList_New(6);
+    PyList_SET_ITEM(param, 0,PyFloat_FromDouble(0.1));
+    PyList_SET_ITEM(param, 1,PyFloat_FromDouble(0.1));
+    PyList_SET_ITEM(param, 2,PyFloat_FromDouble(0.1));
+    PyObject * l3 = PyTuple_New(2);{
+        PyObject * l1 = PyTuple_New(2); {
+            PyTuple_SET_ITEM(l1, 0, PyFloat_FromDouble(0.0));
+            PyTuple_SET_ITEM(l1, 1, PyFloat_FromDouble(0.0));
+        }
+        PyObject * l2 = PyTuple_New(2);{
+            PyTuple_SET_ITEM(l2, 0, PyFloat_FromDouble(0.0));
+            PyTuple_SET_ITEM(l2, 1, PyFloat_FromDouble(0.0));
+        }
+        PyTuple_SET_ITEM(l3, 0 , l1);
+        PyTuple_SET_ITEM(l3, 1 , l2);
     }
+    PyList_SET_ITEM(param, 3, l3);
+    PyList_SET_ITEM(param, 4, PyLong_FromLong(10l));
+    PyList_SET_ITEM(param, 5, PyFloat_FromDouble(2.0));
+
+    df = DataFrame(std::vector<std::string>{"open","close", "high", "low"});
     for (int p=0; p<length; p++) {
         std::string date = "2023-12-12";
         std::string datetime = "2023-12-12 12:12:12";
-        df.append(date, datetime, DoubleArr{1423, 1234, 2345, 1232, 12, 10, 1234, 1234, 1233, 1.2, 34, 0.2, -0.1});
-        df.append(date, datetime, DoubleArr{1423, 1236, 2345, 1232, 12, 10, 1235, 1234, 1233, 1.2, 34, 0.2, -0.1});
+        df.append(datetime, date, DoubleArr{1423, 1234, 2345, 1232});
+        df.append(datetime, date, DoubleArr{1423, 1236, 2345, 1232});
     }
-    for (int i=0; i<10000; i++) {
-        params.push_back(r);
+    for (int i=0; i<1000; i++) {
+        params.push_back(param);
     }
 }
 
+
 int main(int, char**){
-
     int length=317520;
-
     Py_Initialize();
     DataFrame t;
     _Params params;
-    std::vector<PyObject*> result_list;
     _Outcomes outcomes; outcomes.resize(20);
-    PyObject * args = PyLong_FromLong(0l);
     get_test_data(t, params, length);
 
-    long long time = time_test(run_backtest_no_df, t, params, outcomes, result_list, 3.5, args);
-    printf("time: %lld ns.\n", time/10000/317520);
+    long long time = time_test(run_backtest_no_df, t, params, outcomes, 3.5);
+    printf("strategy on_bar() time per loop: %lld ns, total: %lld ms\n", time/1000/length, time/1000000);
 
-    Py_DECREF(args);
     Py_Finalize();
     return 0;
 }

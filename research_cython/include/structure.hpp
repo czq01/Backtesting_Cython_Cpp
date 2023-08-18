@@ -1,3 +1,5 @@
+#ifndef __CZQ_STRUCTURE__
+#define __CZQ_STRUCTURE__
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -6,9 +8,6 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
-
-#ifndef __CZQ_STRUCTURE__
-#define __CZQ_STRUCTURE__
 #define CACHE_LINE_SIZE 64
 #define _CACHE_ALIGN alignas(CACHE_LINE_SIZE)
 
@@ -24,19 +23,20 @@ private:
     _IdxMap* col_mapping;
 
     void _update_values() {
-        this->open = this->get("open");
-        this->close = this->get("close");
-        this->high = this->get("high");
-        this->low = this->get("low");
-        this->hour = this->get("hour");
-        this->minute = this->get("minute");
-        this->H = this->get("H");
-        this->M = this->get("M");
-        this->L = this->get("L");
-        this->b5 = this->get("bolling_beta_5");
-        this->b10 = this->get("bolling_beta_10");
-        this->rsi_5 = this->get("rsi_5");
-        this->macd = this->get("MACD");
+        this->open = this->_get("open");
+        this->close = this->_get("close");
+        this->high = this->_get("high");
+        this->low = this->_get("low");
+        this->hour = (this->datetime[11]-48)*10 + this->datetime[12]-48;
+        this->minute = (this->datetime[13]-48)*10 + this->datetime[14]-48;
+    }
+
+    double _get(const std::string& key) const {
+        if (this->col_mapping->count(key)) {
+            return this->params.at(col_mapping->at(key));
+        } else {
+            throw std::invalid_argument("[get_index] Key not exist in Series.");
+        }
     }
 
     Series_plus(const _String& datetime, const _String& date, _Array &&params,
@@ -50,30 +50,11 @@ private:
     friend class DataFrame;
 
 public:
-    _String date;
-    _String datetime;
-    double open;
-    double close;
-    double high;
-    double low;
-    int hour;
-    int minute;
-    double H;
-    double M;
-    double L;
-    double rsi_5;
-    double b5;
-    double b10;
-    double macd;
+    _String date, datetime;
+    double open, close;
+    double high, low;
+    int hour, minute;
     Series_plus() = delete;
-
-    double get(const std::string& key) const {
-        if (this->col_mapping->count(key)) {
-            return this->params.at(col_mapping->at(key));
-        } else {
-            throw std::invalid_argument("[get_index] Key not exist in Series.");
-        }
-    }
 };
 
 class DataFrame {
@@ -111,80 +92,122 @@ public:
         return series;
     }
 
+
+
     size_t size() const {return series.size();}
 };
 
-class ParamTuple {
+class ArrayManager {
+    int pointer;
+    double * closes;
+    double sum;
+    double sum_square;
 public:
-    double val;
-    double macd;
-    double rsi;
-    double crsi;
-    double beta[2][2]{0};
-    PyObject * idx;
-    ParamTuple(double val, double macd, double rsi, double crsi, PyObject* idx):
-        val(val), macd(macd), rsi(rsi), idx(idx) {}
+    bool is_inited;
+    int max_size;
+    double high;
+    double low;
 
-    PyObject* got_PyTuple_beta() const noexcept {
-        PyObject* beta_1 = PyTuple_New(2); {
-            PyTuple_SET_ITEM(beta_1, 0, PyFloat_FromDouble(beta[0][0]));
-            PyTuple_SET_ITEM(beta_1, 1, PyFloat_FromDouble(beta[0][1]));
-        }
-        PyObject* beta_2 = PyTuple_New(2); {
-            PyTuple_SET_ITEM(beta_2, 0, PyFloat_FromDouble(beta[1][0]));
-            PyTuple_SET_ITEM(beta_2, 1, PyFloat_FromDouble(beta[1][1]));
-        }
-        PyObject* beta_tuple = PyTuple_New(2); {
-            PyTuple_SET_ITEM(beta_tuple, 0, beta_1);
-            PyTuple_SET_ITEM(beta_tuple, 1, beta_2);
-        }
-        return beta_tuple;
+    ArrayManager(int size=0):
+        max_size(size), closes(new double[size]),
+        pointer(0), is_inited(false),
+        sum(0), sum_square(0) {}
+
+    ArrayManager(const ArrayManager&) = delete;
+
+    ArrayManager(ArrayManager&& am):
+        max_size(am.max_size),
+        pointer(am.pointer), is_inited(am.is_inited),
+        sum(am.sum), sum_square(am.sum_square) {
+        double * tmp = closes;
+        closes = am.closes;
+        am.closes = tmp;
     }
 
-    PyObject * to_PyTuple() const noexcept {
-        PyObject* tuple = PyTuple_New(4);{
-            PyTuple_SET_ITEM(tuple, 0, PyFloat_FromDouble(val));
-            PyTuple_SET_ITEM(tuple, 1, PyFloat_FromDouble(macd));
-            PyTuple_SET_ITEM(tuple, 2, PyFloat_FromDouble(rsi));
-            PyTuple_SET_ITEM(tuple, 3, got_PyTuple_beta());
-        }
-        return tuple;
+    ArrayManager &ArrayManager::operator =(const ArrayManager &) = delete;
+
+    ArrayManager &ArrayManager::operator =(ArrayManager && am) {
+        max_size = am.max_size;
+        pointer = am.pointer;
+        is_inited = am.is_inited;
+        sum = am.sum;
+        sum_square = am.sum_square;
+        double * tmp = closes;
+        closes = am.closes;
+        am.closes = tmp;
+        return *this;
     }
 
-};
+    double get_val(const int offset) {
+        if (pointer>=offset) return closes[pointer-offset];
+        else return closes[pointer-offset+max_size];
+    }
 
-class BarReturn{
-public:
-    int type;
-    union {
-        PyObject * pyo;
-        double dval;
-        bool bval;
-        int ival;
+    void update_bar(const Series_plus& bar) {
+        if (is_inited) {
+            sum-=closes[pointer];
+            sum_square -= bar.close*bar.close;
+        }
+        closes[pointer] = bar.close;
+        sum += bar.close;
+        sum_square += bar.close*bar.close;
+        high = std::max(bar.high, high);
+        low = std::min(bar.low, low);
+        pointer++;
+        if (pointer==max_size) {pointer=0; is_inited=true;}
     };
-    char p[24];
-    template <typename T, typename std::enable_if_t<
-            std::is_same<T, double>::value || std::is_same<T, int>::value
-            || std::is_same<T, bool>::value || std::is_same<T, PyObject*>::value, bool> = true>
-    BarReturn(T val) {
-        if constexpr(std::is_same<T, double>::value) {
-            dval = val;
-            type = 0;
-        } else if constexpr(std::is_same<T, int>::value) {
-            ival = val;
-            type = 1;
-        } else if constexpr(std::is_same<T, bool>::value) {
-            bval = val;
-            type = 2;
-        } else if constexpr(std::is_same<T, PyObject*>::value) {
-            pyo = val;
-            type = 3;
+
+    double get_mean() {return sum/max_size;}
+
+    double get_mean(int offset, int N) {
+        double _sum = 0;
+        int _p = this->pointer; _p--;
+        int n = N;
+        while (offset) {_p--; offset--;}
+        while (N) {
+            if (_p<0) {_p+= this->max_size;}
+            _sum += this->closes[_p];
+            N--;
         }
+        return _sum/n;
     }
 
-    void get_val() {
+    double get_std() {return sqrt(sum_square/(max_size-1));}
+
+    double get_std(int offset, int N) {
+        double _sum_sq = 0;
+        int _p = this->pointer; _p--;
+        int n=N+1;
+        while (offset) {_p--;offset--;}
+        while (N) {
+            if (_p<0) {_p+= this->max_size;}
+            _sum_sq += this->closes[_p];
+            N--;
+        }
+        return _sum_sq/n;
     }
 
+    double EMA(int period, int offset=0) {
+        period++;
+        if (period>max_size-offset) {period=max_size-offset;}
+        int _p = pointer-period-offset;
+        if (_p<0) _p+=max_size;
+        double _ema = closes[_p];
+        period--; _p++;
+        while (period) {
+            if (_p == max_size){_p = 0;}
+            _ema = (_ema*(period-1) + closes[_p]*2)/(period+1);
+            period--; _p++;
+        }
+        return _ema;
+    }
+
+    // double get_macd() {}
+    double DIF(int fast=12, int slow=26) {
+        return EMA(26)-EMA(12);
+    }
+
+    ~ArrayManager() {delete [] closes;}
 };
 
 struct OutcomeTuple {
@@ -194,13 +217,14 @@ struct OutcomeTuple {
     double balance;
     int earn;
     double max_drawdown;
-    double pos_high;
-    double pos_low;
     int earn_change;
     double ratio;
 };
 
+
 typedef std::vector<double> DoubleArr;
 typedef std::vector<std::vector<double>> double_2D_Arr;
+// for Cython Intelligence Lightlight Use
+typedef PyObject*  Object;
 
 #endif
