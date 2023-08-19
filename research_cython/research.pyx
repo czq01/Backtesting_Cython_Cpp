@@ -12,16 +12,6 @@ from cython.operator cimport dereference as deref, preincrement as preinc
 cdef extern from "include/entry.hpp":
     cdef cppclass Series_plus:
         string datetime
-        double get(string& key) noexcept
-
-    cdef cppclass ParamTuple:
-        double val
-        double macd
-        double rsi
-        double crsi
-        double beta[2][2]
-        PyObject* idx
-        ParamTuple(double val, double macd, double rsi, double crsi, PyObject* idx)
 
     cdef struct OutcomeTuple:
         int pos;
@@ -30,8 +20,6 @@ cdef extern from "include/entry.hpp":
         double balance;
         int earn;
         double max_drawdown;
-        double pos_high;
-        double pos_low;
         int earn_change;
         double ratio;
 
@@ -43,20 +31,20 @@ cdef extern from "include/entry.hpp":
         const vector[Series_plus]& values() const
         const size_t size() const
 
-    cdef cppclass BaseStrategy:
-        BaseStrategy()
-        double drawdown, val, macd_shreshod, rsi_shreshod, balance, fee, pos_high, pos_low
+    cdef struct Object:
+        int ob_cnt
+
+    cdef cppclass Strategy:
+        Strategy()
+        double drawdown, balance, fee
         int pos, slip, earn, earn_change
-        double beta_shreshod[2][2]
         bint buy_sig, short_sig, cover_sig, sell_sig
         void on_bar(const Series_plus&) noexcept
-        void renew(double val, double macd, double rsi, double crsi, const double beta[2][2]) noexcept
+        void renew(PyObject *) noexcept
 
-    BaseStrategy * getInstance() noexcept
-    void destroyInstance(BaseStrategy *) noexcept
     double sharpe_ratio(vector[double]& balance, double risk_free_rate, double years)
-    void run_backtest_no_df(const DataFrame& cdata, const vector[ParamTuple]& params, vector[OutcomeTuple]& outcomes,
-                    vector[PyObject*]& result, double years, PyObject* args) noexcept
+    void run_backtest_no_df(const DataFrame& cdata, const vector[Object]& params, vector[OutcomeTuple]& outcomes,
+                    vector[Object]& result, double years, PyObject* args) noexcept
 
 
 
@@ -67,20 +55,9 @@ cdef void data_to_cdata(object data, DataFrame& cdata) noexcept:
                         line[1].encode('utf-8'),
                         <vector[double]> line[2:])
 
-cdef void param_to_cparam(object param, vector[ParamTuple]& cparam):
-    cdef double val, macd, rsi
-    for params, ids in param:
-        val, macd, beta, rsi = params
-        cparam.push_back(ParamTuple(val, macd, rsi, 0.0, <PyObject*>ids))
-        cparam.back().beta[0][0] = beta[0][0]
-        cparam.back().beta[0][1] = beta[0][1]
-        cparam.back().beta[1][1] = beta[1][1]
-        cparam.back().beta[1][0] = beta[1][0]
-    return
 
-
-cdef run_backtest_df(const DataFrame& cdata, const vector[ParamTuple]& cparam, columns, res_queue, args):
-    cdef BaseStrategy * st
+cdef run_backtest_df(const DataFrame& cdata, const vector[Object]& param, columns, res_queue, args):
+    cdef Strategy st = Strategy()
     cdef int count
     cdef int i
     cdef vector[double] balanceArr = [0]
@@ -89,11 +66,9 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[ParamTuple]& cparam, c
     cdef double max_drawdown
     cdef vector[Series_plus].const_iterator cdata_iter
 
-    st = getInstance()
-    for i in range(cparam.size()):
+    for i in range(param.size()):
         res = []
-        st.renew(cparam[i].val, cparam[i].macd,
-                    cparam[i].rsi, cparam[i].crsi , cparam[i].beta)
+        st.renew(param[i])
         cdata_iter = cdata.values().const_begin();
         max_drawdown=0
         count = 0
@@ -101,10 +76,10 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[ParamTuple]& cparam, c
         balanceArr.clear()
         balanceArr.reserve(20)
         while(cdata_iter != cdata.values().const_end()):
-            deref(st).on_bar(deref(cdata_iter))
+            st.on_bar(deref(cdata_iter))
             res.append((deref(cdata_iter).datetime, st.pos, st.fee, st.slip, st.balance,
                     st.earn, st.drawdown, st.buy_sig, st.short_sig, st.sell_sig, st.cover_sig,
-                    st.pos_high, st.pos_low, st.earn_change))
+                    st.earn_change))
             preinc(cdata_iter)
             max_drawdown = max(st.drawdown, max_drawdown)
             preinc(count)
@@ -115,32 +90,31 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[ParamTuple]& cparam, c
         outcome = list(res[-1])
         sharp = sharpe_ratio(balanceArr, 0.02, 3.5)
         res_queue.put((df, outcome, (st.val, st.macd_shreshod, st.rsi_shreshod,
-                        st.beta_shreshod), args, <object>cparam[i].idx, sharp))
-    destroyInstance(st)
+                        st.beta_shreshod), args, <object>param[i].idx, sharp))
 
-cpdef void run(object data, list params, res_queue, columns, args, double years, bint get_df=True):
-    cdef vector[ParamTuple] cparam
+
+cpdef void run(object data, list params, object res_queue, object columns, double years, bint get_df=True):
+    cdef vector[Object] cparam
     cdef DataFrame cdata
-    cdef vector[PyObject*] result
-    cdef PyObject*_tmp2
+    cdef vector[Object] result
+    cdef PyObject* _tmp2
     cdef vector[OutcomeTuple] outcomes
 
     cols = [line.encode('utf-8') for line in data.columns[2:]]
     cdata = DataFrame(<vector[string]>cols)
     data_to_cdata(data, cdata);
-    param_to_cparam(params, cparam)
 
+    result.push_back(<PyObject*>columns)
     if get_df:
-        run_backtest_df(cdata, cparam, columns, res_queue, args)
+        run_backtest_df(cdata, cparam, columns, res_queue)
     else:
-        _tmp2 = <PyObject*>args
-        run_backtest_no_df(cdata, cparam, outcomes, result, years, _tmp2)
+        run_backtest_no_df(cdata, cparam, outcomes, result, years)
         set_val(res_queue, outcomes, result)
 
-cdef void set_val(res_queue,vector[OutcomeTuple]& outcomes, vector[PyObject*]& result,):
-    cdef PyObject * result_list;
+cdef void set_val(res_queue,vector[OutcomeTuple]& outcomes, vector[Object]& result):
+    cdef PyObject * result_list
     cdef OutcomeTuple _tmp
-    cdef int i;
+    cdef int i
     for i in range(outcomes.size()):
         result_list = result.at(i)
         result_obj = <object>result_list
@@ -153,8 +127,6 @@ cdef void set_val(res_queue,vector[OutcomeTuple]& outcomes, vector[PyObject*]& r
                                _tmp.earn,
                                _tmp.max_drawdown,
                                False, False, False, False,
-                               _tmp.pos_high,
-                               _tmp.pos_low,
                                _tmp.earn_change)
         result_obj[1] = outcome_tuple
         result_obj[5] = _tmp.ratio

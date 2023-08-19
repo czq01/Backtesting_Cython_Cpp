@@ -39,10 +39,11 @@ private:
         }
     }
 
-    Series_plus(const _String& datetime, const _String& date, _Array &&params,
+    Series_plus(const _String& datetime, const _String& date,
+                const _String& symbol, _Array &&params,
                 _KeyArray * cols, _IdxMap* col_mapping = 0) :
         col_mapping(col_mapping),
-        date(date), datetime(datetime),
+        date(date), datetime(datetime), symbol(symbol),
         cols(cols), params(std::forward<_Array&&>(params)) {
         this->_update_values();
     }
@@ -50,11 +51,13 @@ private:
     friend class DataFrame;
 
 public:
-    _String date, datetime;
+    _String date, datetime, symbol;
     double open, close;
     double high, low;
     int hour, minute;
-    Series_plus() = delete;
+    Series_plus() {}
+    Series_plus(const _String& symbol):
+        symbol(symbol) {}
 };
 
 class DataFrame {
@@ -81,9 +84,10 @@ public:
         }
     }
 
-    void append(const _String& datetime, const _String& date, _Array && params) {
+    void append(const _String& datetime, const _String& date,
+            const _String& symbol, _Array && params) {
         series.emplace_back(Series_plus{
-            datetime, date, std::forward<_Array&&>(params),
+            datetime, date, symbol, std::forward<_Array&&>(params),
             &this->cols, &this->col_mapping
         });
     }
@@ -92,9 +96,7 @@ public:
         return series;
     }
 
-
-
-    size_t size() const {return series.size();}
+    constexpr size_t size() const {return series.size();}
 };
 
 class ArrayManager {
@@ -108,6 +110,7 @@ public:
     int max_size;
     double high;
     double low;
+    double open_interest;
 
     ArrayManager(int size=0):
         max_size(size), closes(new double[size]),
@@ -200,16 +203,17 @@ private:
     int _count;
     ArrayManager* am;
 public:
+    bool is_inited;
     double EMA_fast;
     double EMA_slow;
     double MACD;
     double DEA;
     double DIF;
 
-    MACD_Calculator(): am(0), fast(0), slow(0) {}
+    MACD_Calculator(): am(0), fast(0), slow(0), is_inited(false) {}
 
     MACD_Calculator(ArrayManager& am, int fast=12, int slow=26):
-        am(&am), fast(fast), slow(slow), _count(1), DEA(0),
+        am(&am), fast(fast), slow(slow), _count(1), DEA(0), is_inited(false),
         EMA_fast(NAN), EMA_slow(NAN), MACD(NAN), DIF(NAN) {}
 
     MACD_Calculator& operator=(MACD_Calculator&& mc) {
@@ -220,6 +224,15 @@ public:
 
     // Call function exactly after each am.update_bar()
     constexpr void update() {
+        if (!am->is_inited) {return;}
+        if (is_inited) [[likely]] {
+            EMA_fast = (EMA_fast*(fast-1)+2*am->closes[am->pointer])/(fast+1);
+            EMA_slow = (EMA_slow*(slow-1)+2*am->closes[am->pointer])/(slow+1);
+            DIF = EMA_fast-EMA_slow;
+            MACD = (MACD*8 + DIF*2)/10;
+            DEA = DIF - MACD;
+            return;
+        }
         if (EMA_fast == NAN) [[unlikely]] {
             EMA_fast = am->get_mean(fast);
             EMA_slow = am->get_mean(slow);
@@ -230,13 +243,12 @@ public:
             _count++;
             if (_count < 9) {
                 DIF += EMA_fast-EMA_slow;
-            } else if (_count == 9) {
+            } else {
                 DIF += EMA_fast-EMA_slow;
                 MACD = DIF/9;
+                DIF = EMA_fast-EMA_slow;
                 DEA = DIF-MACD;
-            } else {
-                MACD = (MACD*8 + DIF*2)/10;
-                DEA = DIF - MACD;
+                is_inited = true;
             }
         }
     }
@@ -260,6 +272,7 @@ struct OutcomeTuple {
 
 typedef std::vector<double> DoubleArr;
 typedef std::vector<std::vector<double>> double_2D_Arr;
+
 // for Cython Intelligence Lightlight Use
 typedef PyObject*  Object;
 

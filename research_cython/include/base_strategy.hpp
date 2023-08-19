@@ -68,18 +68,27 @@ public:
     // -----------------------
     // User Reload Functions
     // -----------------------
+
+    // renew the child variable.
+    // will be called whenever starting a new backtest process.
+    // treat it as Construction Function.
+    void child_renew() noexcept {}
+
     // You can use this, or just simply define function with same signature in Child to hide this.
     void on_bar(const Series_plus& record) noexcept{
         this->_manage_pos(record.close);
         if (static_cast<Child*>(this)->is_domain_change(record)) {
-            this->on_trade(0, record);
-            this->sell_sig = this->cover_sig = pos>0;
-            this->cover_sig = this->sell_sig = pos<0;
-            return;
+            return static_cast<Child*>(this)->on_domain_change(record);
         }
         static_cast<Child*>(this)->get_sig(record);
         this->_make_order(record);
         static_cast<Child*>(this)->get_next_min_bounds(record);
+    }
+
+    void on_domain_change(const Series_plus& record) noexcept {
+        this->on_trade(0, record);
+        this->sell_sig = this->cover_sig = pos>0;
+        this->cover_sig = this->sell_sig = pos<0;
     }
 
     // Check if it is time for Domain Contract Changes.
