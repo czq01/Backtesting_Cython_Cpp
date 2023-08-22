@@ -9,8 +9,11 @@ class BaseStrategy {
 private:
     void _make_order(const Series_plus& record) noexcept {
         if (!this->pos) {
-            if (this->short_sig)  static_cast<Child*>(this)->on_trade(-1, record);
-            else if (this->buy_sig) static_cast<Child*>(this)->on_trade(1, record);
+            if (this->short_sig) {
+                static_cast<Child*>(this)->on_trade(-1, record);
+            } else if (this->buy_sig) {
+                static_cast<Child*>(this)->on_trade(1, record);
+            }
         }
         else if (this->pos>0) {
             if (this->short_sig) {
@@ -30,11 +33,12 @@ private:
         }
     }
 
-    void _manage_pos(double price) noexcept {
-        this->earn += this->pos*(price-this->_last_price)*20;
+    void _manage_pos(const Series_plus& bar) noexcept {
+        this->earn += this->pos*(bar.close-this->_last_price)*20;
         this->balance = this->earn-this->fee-this->slip+this->earn_change;
         this->_max_balance = std::max(this->balance, this->_max_balance);
         this->drawdown = std::max(0.0, this->_max_balance-this->balance);
+        static_cast<Child*>(this)->manage_pos(bar);
     }
 
 public:
@@ -74,9 +78,11 @@ public:
     // treat it as Construction Function.
     void child_renew() noexcept {}
 
+    void manage_pos(const Series_plus& bar) noexcept {}
+
     // You can use this, or just simply define function with same signature in Child to hide this.
     void on_bar(const Series_plus& record) noexcept{
-        this->_manage_pos(record.close);
+        this->_manage_pos(record);
         if (static_cast<Child*>(this)->is_domain_change(record)) {
             return static_cast<Child*>(this)->on_domain_change(record);
         }

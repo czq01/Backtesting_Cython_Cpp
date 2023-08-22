@@ -16,7 +16,7 @@ include_directories(
 )
 
 
-add_compile_options(/Ot /std:c++17 /arch:AVX)
+add_compile_options(/Ot /std:c++20 /arch:AVX)
 
 link_directories(
     C:/Users/ziqua/AppData/Local/Programs/Python/Python38/libs

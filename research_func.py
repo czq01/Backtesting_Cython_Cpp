@@ -26,9 +26,9 @@ class JQData_KLine_manager:
         length = int(period[:-1])
         interval = period[-1]
         if interval == 'm':
-            if length == 1: return bars[['datetime', 'trading_day', 'open_interest', "symbol", 'close', 'open',
+            if length == 1: return bars[['datetime', 'trading_day', 'symbol', 'open_interest','close', 'open',
            'high', 'low', 'volume', 'money']]
-            elif length not in [2, 5,10, 15, 30, 60]:
+            elif length>60 or 60%length:
                 raise NotImplementedError("non divisible value is not support. Got %d" %length)
             result = pd.DataFrame()
             result["close"] = bars.close .rolling(length).apply(lambda x: x[-1], raw=True)
@@ -37,14 +37,14 @@ class JQData_KLine_manager:
             result["low"]   = bars.low   .rolling(length).min()
             result["volume"]= bars.volume.rolling(length).sum()
             result["money"] = bars.money .rolling(length).sum()
-            result = result[(result.minute%length==0)]
+            result = result[bars.datetime.apply(lambda x: not int(x[14:16])%length)]
         if interval == 'h':
             # TODO interval in hours
             raise NotImplementedError("h is not supported as period type")
-        result = bars[["datetime", "trading_day", "open_interest", "symbol"]].merge(result, how='right', left_index=True, right_index=True).dropna()
+        result = bars[["datetime", "trading_day", "symbol", "open_interest"]].merge(result, how='right', left_index=True, right_index=True).dropna()
         return result
 
     def cal_bounds(self, period: str='1m'):
-        bars = self._get_KLine(self.data, period)
+        bars = self._get_KLine(self.data, period).sort_values(by=["datetime"])
         return bars
 

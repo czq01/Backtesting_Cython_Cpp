@@ -274,6 +274,6 @@ typedef std::vector<double> DoubleArr;
 typedef std::vector<std::vector<double>> double_2D_Arr;
 
 // for Cython Intelligence Lightlight Use
-typedef PyObject*  Object;
+typedef PyObject*  _Object;
 
 #endif
