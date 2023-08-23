@@ -28,7 +28,7 @@ private:
         this->high = this->_get("high");
         this->low = this->_get("low");
         this->hour = (this->datetime[11]-48)*10 + this->datetime[12]-48;
-        this->minute = (this->datetime[13]-48)*10 + this->datetime[14]-48;
+        this->minute = (this->datetime[14]-48)*10 + this->datetime[15]-48;
     }
 
     double _get(const std::string& key) const {

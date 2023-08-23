@@ -18,20 +18,20 @@ void get_test_data(DataFrame& df, _Params& params, int length ) {
     for (int p=0; p<length/2; p++) {
         std::string date = "2020-03-01";
         std::string datetime = "2020-03-01 12:12:12";
-        df.append(datetime, date, "SA2005", DoubleArr{1423, 1234, 2345, 1232});
-        df.append(datetime, date, "SA2009", DoubleArr{1423, 1236, 2345, 1232});
+        df.append(datetime, date, "SA2005.XZCE", DoubleArr{1423, 1234, 2345, 1232});
+        df.append(datetime, date, "SA2009.XZCE", DoubleArr{1423, 1236, 2345, 1232});
     }
     for (int p=0; p<3; p++) {
         std::string date = "2020-04-17";
         std::string datetime = "2020-03-01 12:12:12";
-        df.append(datetime, date, "SA2005", DoubleArr{1423, 1234, 2345, 1232});
-        df.append(datetime, date, "SA2009", DoubleArr{1423, 1236, 2345, 1232});
+        df.append(datetime, date, "SA2005.XZCE", DoubleArr{1423, 1234, 2345, 1232});
+        df.append(datetime, date, "SA2009.XZCE", DoubleArr{1423, 1236, 2345, 1232});
     }
     for (int p=0; p<length/2; p++) {
         std::string date = "2020-05-01";
         std::string datetime = "2020-05-01 12:12:12";
-        df.append(datetime, date, "SA2009", DoubleArr{1423, 1234, 2345, 1232});
-        df.append(datetime, date, "SA2101", DoubleArr{1423, 1236, 2345, 1232});
+        df.append(datetime, date, "SA2009.XZCE", DoubleArr{1423, 1234, 2345, 1232});
+        df.append(datetime, date, "SA2101.XZCE", DoubleArr{1423, 1236, 2345, 1232});
     }
     for (int i=0; i<1000; i++) {
         params.push_back(param);
@@ -43,16 +43,25 @@ void get_test_data(DataFrame& df, _Params& params, int length ) {
 
 int main(int, char**){
     int length=317520;
-    Py_Initialize();
-    DataFrame t;
-    _Params params;
-    _Outcomes outcomes; outcomes.resize(20);
-    get_test_data(t, params, length);
+    // Py_Initialize();
+    // DataFrame t;
+    // _Params params;
+    // _Outcomes outcomes; outcomes.resize(20);
+    // get_test_data(t, params, length);
 
-    // t = __pyx_f_8research_get_data("F:/trading/research/data/SAbar_data.csv");
-    long long time = time_test(run_backtest_no_df, t, params, outcomes, 3.5);
-    printf("strategy on_bar() time per loop: %lld ns, total: %lld ms\n", time/1000/length, time/1000000);
-    Py_Finalize();
+    // // t = __pyx_f_8research_get_data("F:/trading/research/data/SAbar_data.csv");
+    // long long time = time_test(run_backtest_no_df, t, params, outcomes, 3.5);
+    // printf("strategy on_bar() time per loop: %lld ns, total: %lld ms\n", time/1000/length, time/1000000);
+    // Py_Finalize();
+
+    ChangeMain change = ChangeMain(SA_change);
+    bool p = change.is_change("2019-12-05");
+    p&=change.is_change("2019-12-06");
+    p&=change.is_change("2019-12-07");
+    p&=change.is_change("2020-12-07");
+    p&=change.is_change("2020-04-07");
+    p&=change.is_change("2020-04-17");
+    p&=change.is_change("2020-04-18");
 
     return 0;
 }
