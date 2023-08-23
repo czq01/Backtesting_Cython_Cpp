@@ -40,7 +40,7 @@ cdef extern from "include/entry.hpp":
         int pos, slip, earn, earn_change
         bint buy_sig, short_sig, cover_sig, sell_sig
         void on_bar(const Series_plus&) noexcept
-        void renew(_Object) noexcept
+        void renew(PyObject *) noexcept
         void get_next_min_bounds(const Series_plus&) noexcept
         bint loading_data(const Series_plus&) noexcept
 
@@ -76,8 +76,8 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[_Object]& param, colum
         count = 0
         balanceArr.clear()
         cdata_iter = cdata.values().const_begin();
-        while (not st.loading_data(deref(cdata_iter)) and
-                cdata_iter != cdata.values().const_end()):
+        while (cdata_iter != cdata.values().const_end() and
+                not st.loading_data(deref(cdata_iter))):
             preinc(cdata_iter); preinc(count);
         st.get_next_min_bounds(deref(cdata_iter));
         preinc(cdata_iter); preinc(count);
@@ -88,16 +88,18 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[_Object]& param, colum
             res.append((deref(cdata_iter).datetime, st.pos, st.fee, st.slip, st.balance,
                     st.earn, st.drawdown, st.buy_sig, st.short_sig, st.sell_sig, st.cover_sig,
                     st.earn_change))
-            preinc(cdata_iter)
+            preinc(cdata_iter); preinc(count)
             max_drawdown = max(st.drawdown, max_drawdown)
-            preinc(count)
             if (count == divide):
                 balanceArr.push_back(st.balance)
                 count = 0
         df = pd.DataFrame(res, columns=columns)
         outcome = list(res[-1])
         sharp = sharpe_ratio(balanceArr, 0.02, 3.5)
-        res_queue.put((df, outcome, sharp))
+        outcome.append(sharp)
+        # Py_DECREF(_)
+        res_queue.put([df, outcome , <object>(param[i])])
+
 
 cpdef void run(object data, list params, object res_queue, object columns, double years, bint get_df=True):
     cdef vector[_Object] cparam
@@ -115,9 +117,7 @@ cpdef void run(object data, list params, object res_queue, object columns, doubl
         run_backtest_df(cdata, cparam, columns, res_queue)
     else:
         run_backtest_no_df(cdata, cparam, outcomes, years)
-        # print("exited backtest", flush=True)
         set_val(res_queue, outcomes, cparam)
-        # print("exited run", flush=True)
 
 cdef void set_val(res_queue, vector[OutcomeTuple]& outcomes, vector[_Object]& cparam):
     cdef OutcomeTuple _tmp
@@ -133,7 +133,6 @@ cdef void set_val(res_queue, vector[OutcomeTuple]& outcomes, vector[_Object]& cp
                                False, False, False, False,
                                _tmp.earn_change,
                                _tmp.ratio]
-        print(_tmp.balance)
         params = <object>cparam[i]
         Py_DECREF(params)
         outcome_tuple.extend(params)

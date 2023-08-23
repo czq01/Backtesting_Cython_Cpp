@@ -9,12 +9,12 @@
 #undef min
 
 
-
 // Entry: (no df)
 void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>& params,
             std::vector<OutcomeTuple>& outcomes, double years, int start, int end) noexcept {
     std::vector<double> _CACHE_ALIGN ratio_vec; ratio_vec.reserve(20);
     Strategy st;
+
     for (int i=start; i<end; i++) {
         st.renew(params[i]);
         double max_drawdown=0;
@@ -22,9 +22,12 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>
         ratio_vec.clear();
         auto iter = cdata.values().cbegin();
         auto end = cdata.values().cend();
-        while (st.loading_data(*iter) && iter!=end) {++iter;++count;}
-        st.get_next_min_bounds(*iter);
-        ++iter;++count;
+        while (iter!=end && !st.loading_data(*iter))
+            {++iter;++count;}
+        if (iter != end) {
+            st.get_next_min_bounds(*iter);
+            ++iter;++count;
+        }
         const int divide = (cdata.size()-count)>>4;
         count = 0;
         for (;iter!=end;++iter) {
@@ -35,9 +38,8 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>
                 ratio_vec.push_back(st.balance); count=0;
             }
         }
-        // if (count)
         double ratio = sharpe_ratio(ratio_vec, 0.02, years);
-        outcomes[i] = std::forward<const OutcomeTuple>(
+        outcomes[i] = std::forward<OutcomeTuple>(
             OutcomeTuple{st.pos, st.fee, (int)st.slip, st.balance, (int)st.earn, max_drawdown, (int)st.earn_change, ratio}
         );
     }
@@ -47,7 +49,7 @@ void run_backtest_no_df(const DataFrame& cdata, const std::vector<PyObject*>& pa
             std::vector<OutcomeTuple>& outcomes, const double& years) noexcept {
     constexpr int THREAD_NUM=8;
     outcomes.resize(params.size());
-    Py_BEGIN_ALLOW_THREADS
+    // Py_BEGIN_ALLOW_THREADS
     std::vector<std::thread> _CACHE_ALIGN ths;
     int divide_len = (params.size())/THREAD_NUM;
     for (int i=0; i<THREAD_NUM-1; i++) {
@@ -60,8 +62,8 @@ void run_backtest_no_df(const DataFrame& cdata, const std::vector<PyObject*>& pa
     for (std::thread& i: ths) {
         i.join();
     }
-    printf("good\n");
-    Py_END_ALLOW_THREADS
+    // Py_END_ALLOW_THREADS
+    // printf("out backtest\n");
 }
 
 

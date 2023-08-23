@@ -34,10 +34,11 @@ private:
     }
 
     void _manage_pos(const Series_plus& bar) noexcept {
-        this->earn += this->pos*(bar.close-this->_last_price)*20;
+        this->earn += static_cast<double>(this->pos*20)*(bar.close-this->_last_price);
         this->balance = this->earn-this->fee-this->slip+this->earn_change;
         this->_max_balance = std::max(this->balance, this->_max_balance);
         this->drawdown = std::max(0.0, this->_max_balance-this->balance);
+        this->_last_price = bar.close;
         static_cast<Child*>(this)->manage_pos(bar);
     }
 
