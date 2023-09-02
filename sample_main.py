@@ -2,6 +2,7 @@ import multiprocessing as mp
 import queue
 from py_module.research_func import *
 import cython_module as rs
+
 import warnings
 warnings.filterwarnings('ignore')
 kline_mgr = JQData_KLine_manager('./data/SAbar_data.csv')
@@ -26,20 +27,21 @@ def get_data():
 
 # run params
 length=0; i=0
-alive=True; plot = False; flag=False
+alive=True; plot = False
 def run(params: list, res_queue):
     global length, plot, alive, flag
     for period, data in get_data():
         queue = [p+[period] for p in params.copy()]
-        # print(queue)
-        # print("try in run", flush=True)
         rs.run(data, queue, res_queue, columns, 3.5, plot)
-        # print("try out run", flush=True)
-        while (flag):
-            time.sleep(10)
         length += len(params)
+    alive=False
 
 if __name__ == "__main__":
-    import time
     res_queue = queue.Queue()
+    # run backtesting
     run(params, res_queue)
+    # get result
+    for i in range(length):
+        result = res_queue.get()
+        print(f"\rGet {i+1}/{length}", end='\t')
+    print()
