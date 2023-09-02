@@ -40,7 +40,6 @@ void get_test_data(DataFrame& df, _Params& params, int length ) {
 
 
 
-
 int main(int, char**){
     int length=317520;
     // Py_Initialize();

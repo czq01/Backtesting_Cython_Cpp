@@ -1,31 +1,28 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(teste VERSION 0.1.0 LANGUAGES C CXX)
+project(unit_test VERSION 0.1.0 LANGUAGES C CXX)
 
 include(CTest)
 enable_testing()
 
-
+set(PYTHON_INCLUDE C:/Users/ziqua/AppData/Local/Programs/Python/Python38/include)
+set(PYTHON_LIB C:/Users/ziqua/AppData/Local/Programs/Python/Python38/libs)
 
 include_directories(
     ${PROJECT_SOURCE_DIR}/**
-    C:/Users/ziqua/AppData/Local/Programs/Python/Python38/include/**
-    C:/Users/ziqua/AppData/Local/Programs/Python/Python38/include
-    ./research_cython/include
-    ./research_cython
-
+    ${PYTHON_INCLUDE}/**
+    # C:/Users/ziqua/AppData/Local/Programs/Python/Python38/include
+    ${PROJECT_SOURCE_DIR}/cython_module/include
 )
-
-
-add_compile_options(/Ot /std:c++20 /arch:AVX)
 
 link_directories(
-    C:/Users/ziqua/AppData/Local/Programs/Python/Python38/libs
+    ${PYTHON_LIB}
 )
-link_libraries(python38)
 
 
-add_executable(teste main.cpp)
-SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/PROFILE")
+
+add_subdirectory(cpp_test/whole_test)
+add_subdirectory(cpp_test/df_test)
+
 
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})

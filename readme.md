@@ -1,12 +1,32 @@
 # Backtesting Cython CPP
 
-This is a not completed backtesting framework.
+This is a backtesting framework Python Extension.
 
-use in python:
+## Usage
+
+- compile the extension runing:
+
+```bash
+
+./cython_module/build.sh
+
+```
+
+- extension use in python:
 
 ```python3
 
-import cython_research as rs
-rs.run(**args)
+import cython_module as cm
+
+```
+
+## Functions
+
+1. starting backtesting
+
+```python3
+
+void run(data: DataFrame, params: List[list], res_queue:__Queue, columns: Iterable,
+            years: float, get_df: bool=True);
 
 ```

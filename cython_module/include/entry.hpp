@@ -24,10 +24,7 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>
         auto end = cdata.values().cend();
         while (iter!=end && !st.loading_data(*iter))
             {++iter;++count;}
-        if (iter != end) {
-            st.get_next_min_bounds(*iter);
-            ++iter;++count;
-        }
+        ++iter; ++count;
         const int divide = (cdata.size()-count)>>4;
         count = 0;
         for (;iter!=end;++iter) {
@@ -47,7 +44,7 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>
 
 void run_backtest_no_df(const DataFrame& cdata, const std::vector<PyObject*>& params,
             std::vector<OutcomeTuple>& outcomes, const double& years) noexcept {
-    constexpr int THREAD_NUM=8;
+    constexpr int THREAD_NUM=16;
     outcomes.resize(params.size());
     // Py_BEGIN_ALLOW_THREADS
     std::vector<std::thread> _CACHE_ALIGN ths;
