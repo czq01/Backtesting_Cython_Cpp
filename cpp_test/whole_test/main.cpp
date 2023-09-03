@@ -42,25 +42,15 @@ void get_test_data(DataFrame& df, _Params& params, int length ) {
 
 int main(int, char**){
     int length=317520;
-    // Py_Initialize();
-    // DataFrame t;
-    // _Params params;
-    // _Outcomes outcomes; outcomes.resize(20);
-    // get_test_data(t, params, length);
+    Py_Initialize();
+    DataFrame t;
+    _Params params;
+    _Outcomes outcomes; outcomes.resize(20);
+    get_test_data(t, params, length);
 
-    // // t = __pyx_f_8research_get_data("F:/trading/research/data/SAbar_data.csv");
-    // long long time = time_test(run_backtest_no_df, t, params, outcomes, 3.5);
-    // printf("strategy on_bar() time per loop: %lld ns, total: %lld ms\n", time/1000/length, time/1000000);
-    // Py_Finalize();
-
-    ChangeMain change = ChangeMain(SA_change);
-    bool p = change.is_change("2019-12-05");
-    p&=change.is_change("2019-12-06");
-    p&=change.is_change("2019-12-07");
-    p&=change.is_change("2020-12-07");
-    p&=change.is_change("2020-04-07");
-    p&=change.is_change("2020-04-17");
-    p&=change.is_change("2020-04-18");
-
+    // t = __pyx_f_8research_get_data("F:/trading/research/data/SAbar_data.csv");
+    long long time = time_test(run_backtest_no_df, t, params, outcomes, 3.5);
+    printf("strategy on_bar() time per loop: %lld ns, total: %lld ms\n", time/1000/length, time/1000000);
+    Py_Finalize();
     return 0;
 }

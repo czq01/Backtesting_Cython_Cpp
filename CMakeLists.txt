@@ -21,6 +21,7 @@ link_directories(
 
 
 add_subdirectory(cpp_test/whole_test)
+add_subdirectory(cpp_test/techinical_index)
 add_subdirectory(cpp_test/df_test)
 
 
