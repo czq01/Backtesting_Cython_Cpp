@@ -7,7 +7,7 @@ typedef std::vector<PyObject *> _Params;
 typedef std::vector<OutcomeTuple> _Outcomes;
 
 
-void get_test_data(DataFrame& df, _Params& params, int length) {
+void get_test_data(DataFrame& df, _Params& params, int length ) {
     PyObject * param = PyList_New(3);
     PyList_SET_ITEM(param, 0, PyFloat_FromDouble(1.0));
     PyList_SET_ITEM(param, 1, PyFloat_FromDouble(1.0));
@@ -43,17 +43,6 @@ void get_test_data(DataFrame& df, _Params& params, int length) {
 }
 
 
-//overriding
-void run_backtest_no_df_test(const DataFrame& cdata, const std::vector<PyObject*>& params,
-            std::vector<OutcomeTuple>& outcomes, const double& years) noexcept {
-    outcomes.resize(params.size());
-    // Py_BEGIN_ALLOW_THREADS
-    std::vector<std::thread> _CACHE_ALIGN ths;
-    backtest_threads_no_df(cdata, params, outcomes, years, 0, params.size());
-    // Py_END_ALLOW_THREADS
-    printf("out backtest\n");
-}
-
 int main(int, char**){
     int length=31752;
     Py_Initialize();
@@ -63,7 +52,7 @@ int main(int, char**){
     get_test_data(t, params, length);
 
     // t = __pyx_f_8research_get_data("F:/trading/research/data/SAbar_data.csv");
-    long long time = time_test(run_backtest_no_df_test, t, params, outcomes, 3.5);
+    long long time = time_test(run_backtest_no_df, t, params, outcomes, 3.5);
     printf("strategy on_bar() time per loop: %lld ns, total: %lld ms\n", time/1000/length, time/1000000);
     Py_Finalize();
     return 0;

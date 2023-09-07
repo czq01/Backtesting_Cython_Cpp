@@ -1,11 +1,10 @@
-
 #ifndef __UTIL_OWN
 #define __UTIL_OWN
 #include <type_traits>
 #include <chrono>
-#include "structure.hpp"
-
-
+#include <algorithm>
+#include <numeric>
+#include <array>
 
 /* Test time cost of function*/
 template <class Fn,class ...Args>
@@ -75,5 +74,26 @@ constexpr double sharpe_ratio(const std::vector<double>& balance, double risk_fr
     // Calculate the Sharpe Ratio
     return (mean_return - risk_free_rate) / stddev_return * sqrt_const(adjust_val);
 }
+
+template <size_t N>
+constexpr double sharpe_ratio(const std::array<double, N>& balance, double risk_free_rate, double period_year_count) {
+    // Calculate the returns
+    // const int return_size = balance.size()-1;
+    constexpr int return_size = N-1;
+    // std::vector<double> _CACHE_ALIGN returns(return_size, 0);
+    double returns[N-1];
+    double adjust_val = static_cast<double>(N)/period_year_count;
+    for(int i = 0; i < return_size; i++) {
+        returns[i] = ((balance[i+1] - balance[i]) / (balance[i]+20000));
+    }
+
+    // Calculate the mean and standard deviation of returns
+    double mean_return = balance[return_size]/return_size/20000;
+    double stddev_return = stddev(returns, mean_return);
+
+    // Calculate the Sharpe Ratio
+    return (mean_return - risk_free_rate) / stddev_return * sqrt_const(adjust_val);
+}
+
 
 #endif

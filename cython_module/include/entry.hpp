@@ -1,10 +1,10 @@
+#ifndef __ENTRY_HPP__
+#define __ENTRY_HPP__
 #include "strategy.hpp"
-#include "util.hpp"
+#include "structure.hpp"
 #include <iostream>
 #include <thread>
 #include <Windows.h>
-#ifndef __ENTRY_HPP__
-#define __ENTRY_HPP__
 #undef max
 #undef min
 
@@ -12,27 +12,32 @@
 // Entry: (no df)
 void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>& params,
             std::vector<OutcomeTuple>& outcomes, double years, int start, int end) noexcept {
-    std::vector<double> _CACHE_ALIGN ratio_vec; ratio_vec.reserve(20);
+    std::array<double, 16U> _CACHE_ALIGN ratio_vec;
     Strategy st;
 
     for (int i=start; i<end; i++) {
         st.renew(params[i]);
         double max_drawdown=0;
         int count=0;
-        ratio_vec.clear();
         auto iter = cdata.values().cbegin();
         auto end = cdata.values().cend();
+
+        // Pre-loading data for technical idnex
         while (iter!=end && !st.loading_data(*iter))
             {++iter;++count;}
         ++iter; ++count;
+
+        // Run backtesting
         const int divide = (cdata.size()-count)>>4;
+        int pos = 0;
         count = 0;
         for (;iter!=end;++iter) {
             st.on_bar(*iter);
             max_drawdown = std::max(max_drawdown, st.drawdown);
             count++;
             if (count==divide) {
-                ratio_vec.push_back(st.balance); count=0;
+                ratio_vec[pos]=st.balance;
+                count=0; pos++;
             }
         }
         double ratio = sharpe_ratio(ratio_vec, 0.02, years);

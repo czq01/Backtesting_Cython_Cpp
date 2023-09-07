@@ -2,12 +2,14 @@
 #define __CZQ_STRUCTURE__
 #include <vector>
 #include <string>
+#include <array>
 #include <unordered_map>
 #include <Python.h>
 #include <stdexcept>
 #include <algorithm>
 #include <numeric>
 #include <functional>
+#include "util.hpp"
 #define CACHE_LINE_SIZE 64
 #define _CACHE_ALIGN alignas(CACHE_LINE_SIZE)
 
@@ -140,7 +142,7 @@ class SingleArrayManager {
     double sum_square;
     void * _subcls_update_func;
 
-    void _update_child() {
+    constexpr void _update_child() {
         auto func_pointers = (std::function<void()>**)(static_cast<char*>(_subcls_update_func)+sizeof(int));
         int N = *static_cast<int*>(_subcls_update_func);
         while (N) {
@@ -219,7 +221,7 @@ public:
         else return closes[pointer-offset+max_size];
     }
 
-    void update_bar(const Series_plus& bar) {
+    constexpr void update_bar(const Series_plus& bar) {
         size++; pointer++;
         if (pointer == max_size) [[unlikely]] {pointer=0;}
         if (is_inited) [[likely]] {
@@ -251,9 +253,9 @@ public:
         return _sum/n;
     }
 
-    double get_std() {return std::sqrt(sum_square/(max_size-1));}
+    constexpr double get_std() {return sqrt_const(sum_square/(max_size-1));}
 
-    double get_std(int offset, int N) {
+    constexpr double get_std(int offset, int N) {
         double _sum_sq = 0;
         int _p = this->pointer;
         int n=N+1;
@@ -263,7 +265,7 @@ public:
             _sum_sq += this->closes[_p];
             N--; _p--;
         }
-        return sqrt(_sum_sq/n);
+        return sqrt_const(_sum_sq/n);
     }
 
     ~SingleArrayManager() {
@@ -281,7 +283,6 @@ public:
 
 class ArrayManager {
 private:
-public:
     std::unordered_map<std::string_view, SingleArrayManager> ams;
     void * _update_func;
 
@@ -338,12 +339,12 @@ public:
     }
 
     template <typename ...Args>
-    double get_std(const std::string_view& symbol, Args ...args) {
+    constexpr double get_std(const std::string_view& symbol, Args ...args) {
         return ams.at(symbol).get_std(std::forward<Args>(args)...);
     }
 
     template <typename ...Args>
-    double get_close(const std::string_view& symbol, Args ...args) {
+    constexpr double get_close(const std::string_view& symbol, Args ...args) {
         return ams.at(symbol).get_close(std::forward<Args>(args)...);
     }
 

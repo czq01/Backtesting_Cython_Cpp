@@ -22,8 +22,6 @@ void test_one() {
         for (auto && symbol: symbols) {
             Series_plus sr = get_fake_data(2350, i, symbol);
             p.update_bar(sr);
-            auto f = &(macd_cal);
-            auto r = *(std::function<void(const std::string_view&)>**)((char*)p._update_func+4);
             if (macd_cal.is_inited(sr.symbol)) {
                 auto&&[MACD, DIF, DEA] = macd_cal.get_val(sr.symbol);
                 printf("%s, %d, %lf, %lf, %lf\n", sr.symbol.c_str(),i, MACD, DIF, DEA);
