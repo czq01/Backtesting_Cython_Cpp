@@ -5,31 +5,7 @@
 #include <chrono>
 #include "structure.hpp"
 
-/* Fast Find if Main Contract Changed. */
-class ChangeMain {
-    const char (*change)[11];
-public:
 
-    ChangeMain(const char (*SA_change)[11]): change(SA_change) {}
-
-    ChangeMain& operator=(ChangeMain&& obj) {
-        this->change = obj.change;
-        return *this;
-    }
-
-    bool is_change(const std::string& val) {
-        bool flag = (val.size()==10)&&(
-                (val[3]==(*change)[3])&&(val[5]==(*change)[5])&&(val[6]==(*change)[6])
-                        &&(val[8]==(*change)[8])&&(val[9]==(*change)[9]));
-        // time is moving at one direction
-        change += flag;
-        return flag;
-    }
-
-    std::string get_next_date() {
-        return std::string(*change);
-    }
-};
 
 /* Test time cost of function*/
 template <class Fn,class ...Args>
@@ -41,20 +17,33 @@ long long time_test(Fn&& func, Args&& ...args) {
     return duration.count();
 }
 
+constexpr double sqrtNewtonRaphson(double x, double curr, double prev){
+	return curr == prev
+			? curr
+			: sqrtNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
+}
+
+constexpr double sqrt_const(double x)
+{
+	return x >= 0 && x < std::numeric_limits<double>::infinity()
+		? sqrtNewtonRaphson(x, x, 0)
+		: std::numeric_limits<double>::quiet_NaN();
+}
+
 
 /* Get Mean Value of numbers*/
-inline double mean(const std::vector<double>& v) {
+constexpr double mean(const std::vector<double>& v) {
     return std::accumulate(v.begin(), v.end(), 0.0) / v.size();
 }
 
 /* Calculate the standard deviation of a vector */
-double stddev(const std::vector<double>& v, double mean) {
+constexpr double stddev(const std::vector<double>& v, double mean) {
     double sum = 0.0;
     for(double x : v) {
         double diff = x - mean;
         sum += diff * diff;
     }
-    return std::sqrt(sum / (v.size() - 1));
+    return sqrt_const(sum / (v.size() - 1));
 }
 
 template <size_t N>
@@ -64,11 +53,11 @@ constexpr double stddev(const double (&v)[N], double mean) {
         double diff = x - mean;
         sum += diff * diff;
     }
-    return std::sqrt(sum / (N-1));
+    return sqrt_const(sum / (N-1));
 }
 
 // Calculate the Sharpe Ratio
-double sharpe_ratio(const std::vector<double>& balance, double risk_free_rate, double period_year_count) {
+constexpr double sharpe_ratio(const std::vector<double>& balance, double risk_free_rate, double period_year_count) {
     // Calculate the returns
     // const int return_size = balance.size()-1;
     const int return_size = 15;
@@ -84,9 +73,7 @@ double sharpe_ratio(const std::vector<double>& balance, double risk_free_rate, d
     double stddev_return = stddev(returns, mean_return);
 
     // Calculate the Sharpe Ratio
-    return (mean_return - risk_free_rate) / stddev_return * sqrt(adjust_val);
+    return (mean_return - risk_free_rate) / stddev_return * sqrt_const(adjust_val);
 }
-
-
 
 #endif
