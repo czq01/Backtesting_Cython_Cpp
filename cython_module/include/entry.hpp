@@ -54,12 +54,21 @@ void run_backtest_no_df(const DataFrame& cdata, const std::vector<PyObject*>& pa
     // Py_BEGIN_ALLOW_THREADS
     std::vector<std::thread> _CACHE_ALIGN ths;
     int divide_len = (params.size())/THREAD_NUM;
-    for (int i=0; i<THREAD_NUM-1; i++) {
+    int mod_len = (params.size() - divide_len*THREAD_NUM);
+    int start=0;
+    divide_len++;
+    for (int i=0; i<mod_len; i++) {
         ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(cdata),
-                std::ref(params), std::ref(outcomes), years, i*divide_len, (i+1)*divide_len));
+                std::ref(params), std::ref(outcomes), years, start, start+divide_len));
+        start += divide_len;
     }
-    ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(cdata),
-                std::ref(params), std::ref(outcomes), years, (THREAD_NUM-1)*divide_len, params.size()));
+    divide_len--;
+    for (int i=mod_len; i<THREAD_NUM; i++) {
+        ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(cdata),
+                std::ref(params), std::ref(outcomes), years, start, start+divide_len));
+                start += divide_len;
+    }
+
     // backtest_threads_no_df(cdata, params, outcomes, years, 0, params.size());
     for (std::thread& i: ths) {
         i.join();

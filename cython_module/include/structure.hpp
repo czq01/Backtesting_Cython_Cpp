@@ -316,6 +316,8 @@ private:
 
 public:
     int max_size;
+    ArrayManager(): max_size(0), _update_func(new char[ArrMgr_SubSize(0)]) {}
+
     ArrayManager(int size): max_size(size), _update_func(new char[ArrMgr_SubSize(0)]) {
         *static_cast<int*>(_update_func) = 0;
     }
@@ -323,6 +325,18 @@ public:
     ArrayManager(const ArrayManager &) = delete;
 
     ArrayManager(ArrayManager &&) = delete;
+
+    ArrayManager& operator=(const ArrayManager&) = delete;
+
+    // use only when new am is empty.
+    ArrayManager& operator=(ArrayManager&& am) {
+        void * tmp = this->_update_func;
+        this->_update_func = am._update_func;
+        am._update_func = tmp;
+        this->max_size = am.max_size;
+        this->ams = std::move(am.ams);
+        return *this;
+    }
 
     void update_bar(const Series_plus& bar) {
         if (!ams.count(bar.symbol)) {
@@ -377,11 +391,7 @@ protected:
 
     _Base_Index_Calculator& operator=(const _Base_Index_Calculator&) = delete;
 
-    _Base_Index_Calculator& operator=(_Base_Index_Calculator&& obj) {
-        this->_am = obj._am;
-        this->is_inited = obj.is_inited;
-        return *this;
-    }
+    _Base_Index_Calculator& operator=(_Base_Index_Calculator&& obj) = delete;
 
 
 public:
