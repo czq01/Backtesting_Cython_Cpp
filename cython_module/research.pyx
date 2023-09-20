@@ -10,10 +10,11 @@ from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from cython.operator cimport dereference as deref, preincrement as preinc
 
 cdef extern from "include/entry.hpp":
-    cdef cppclass Series_plus:
-        string datetime
 
     ctypedef PyObject* _Object
+
+    cdef cppclass BarData:
+        string datetime
 
     cdef struct OutcomeTuple:
         int pos;
@@ -31,23 +32,21 @@ cdef extern from "include/entry.hpp":
         DataFrame(const vector[string]&& cols)
         void append(const string& datetime, const string& date,
                 const string& symbol, vector[double] && params)
-        const vector[Series_plus]& values() const
-        const size_t size() const
 
     cdef cppclass Strategy:
         Strategy()
         double drawdown, balance, fee
         int pos, slip, earn, earn_change
         bint buy_sig, short_sig, cover_sig, sell_sig
-        void on_bar(const Series_plus&) noexcept
+        void on_bar(const BarData&) noexcept
         void renew(PyObject *) noexcept
-        void get_next_min_bounds(const Series_plus&) noexcept
-        bint loading_data(const Series_plus&) noexcept
+        void get_next_min_bounds(const BarData&) noexcept
+        bint loading_data(const BarData&) noexcept
 
+    vector[BarData] barFromDataframe(const DataFrame& cdata)
     double sharpe_ratio(vector[double]& balance, double risk_free_rate, double years)
     void run_backtest_no_df(const DataFrame& cdata, const vector[_Object]& params,
                     vector[OutcomeTuple]& outcomes, double years) noexcept
-
 
 
 cdef void data_to_cdata(object data, DataFrame& cdata) noexcept:
@@ -60,14 +59,16 @@ cdef void data_to_cdata(object data, DataFrame& cdata) noexcept:
 
 
 cdef run_backtest_df(const DataFrame& cdata, const vector[_Object]& param, columns, res_queue):
-    cdef Strategy st = Strategy()
+    cdef Strategy st
     cdef int count
     cdef int i
     cdef vector[double] balanceArr = [0]
     cdef list res, outcome
     cdef int divide
     cdef double max_drawdown
-    cdef vector[Series_plus].const_iterator cdata_iter
+    cdef vector[BarData].const_iterator cdata_iter
+
+    cdef vector[BarData] data = barFromDataframe(cdata)
 
     for i in range(param.size()):
         res = []
@@ -75,15 +76,14 @@ cdef run_backtest_df(const DataFrame& cdata, const vector[_Object]& param, colum
         max_drawdown=0
         count = 0
         balanceArr.clear()
-        cdata_iter = cdata.values().const_begin();
-        while (cdata_iter != cdata.values().const_end() and
+        cdata_iter = data.const_begin();
+        while (cdata_iter != data.const_end() and
                 not st.loading_data(deref(cdata_iter))):
             preinc(cdata_iter); preinc(count);
-        st.get_next_min_bounds(deref(cdata_iter));
         preinc(cdata_iter); preinc(count);
-        divide = (cdata.size()-count)>>4
+        divide = (data.size()-count)>>5
         count = 0;
-        while(cdata_iter != cdata.values().const_end()):
+        while(cdata_iter != data.const_end()):
             st.on_bar(deref(cdata_iter))
             res.append((deref(cdata_iter).datetime, st.pos, st.fee, st.slip, st.balance,
                     st.earn, st.drawdown, st.buy_sig, st.short_sig, st.sell_sig, st.cover_sig,

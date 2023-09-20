@@ -3,10 +3,10 @@
 # include <string>
 
 
-Series_plus get_fake_data(int price, int idx, std::string syb="SA2309.XZCE") {
+BarData get_fake_data(int price, int idx, std::string syb="SA2309.XZCE") {
     std::string datetime="2023-01-01 12:12:12", date="2023-01-01";
     std::string symbol = syb;
-    Series_plus p(symbol);
+    BarData p(symbol.c_str());
     p.close = price+idx*idx;
     p.high = price + 5;
     p.low = price-5;
@@ -20,11 +20,11 @@ void test_one() {
     std::vector<std::string> symbols{"SA2309.XZCE", "SA2311.XZCE"};
     for (int i=0; i<60; i++) {
         for (auto && symbol: symbols) {
-            Series_plus sr = get_fake_data(2350, i, symbol);
+            BarData sr = get_fake_data(2350, i, symbol);
             p.update_bar(sr);
             if (macd_cal.is_inited(sr.symbol)) {
                 auto&&[MACD, DIF, DEA] = macd_cal.get_val(sr.symbol);
-                printf("%s, %d, %lf, %lf, %lf\n", sr.symbol.c_str(),i, MACD, DIF, DEA);
+                printf("%s, %d, %lf, %lf, %lf\n", sr.symbol,i, MACD, DIF, DEA);
             }
         }
     }
@@ -35,7 +35,7 @@ void test_two() {
     SingleArrayManager p(45);
     SingleCalculator_MACD macd_cal(p);
     for (int i=0; i<60; i++) {
-        Series_plus sr = get_fake_data(2350, i);
+        BarData sr = get_fake_data(2350, i);
         p.update_bar(sr);
         if (macd_cal.is_inited) {
             auto&&[MACD, DIF, DEA] = macd_cal.get_val();

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <numeric>
 #include <array>
+#include <vector>
 
 /* Test time cost of function*/
 template <class Fn,class ...Args>
@@ -22,11 +23,11 @@ constexpr double sqrtNewtonRaphson(double x, double curr, double prev){
 			: sqrtNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
 }
 
-constexpr double sqrt_const(double x)
-{
-	return x >= 0 && x < std::numeric_limits<double>::infinity()
+template <typename T>
+constexpr T sqrt_const(T x) {
+	return x >= 0 && x < std::numeric_limits<T>::infinity()
 		? sqrtNewtonRaphson(x, x, 0)
-		: std::numeric_limits<double>::quiet_NaN();
+		: std::numeric_limits<T>::quiet_NaN();
 }
 
 
@@ -45,7 +46,7 @@ constexpr double stddev(const std::vector<double>& v, double mean) {
     return sqrt_const(sum / (v.size() - 1));
 }
 
-template <size_t N>
+template <int N>
 constexpr double stddev(const double (&v)[N], double mean) {
     double sum = 0.0;
     for(double x : v) {
@@ -75,8 +76,8 @@ constexpr double sharpe_ratio(const std::vector<double>& balance, double risk_fr
     return (mean_return - risk_free_rate) / stddev_return * sqrt_const(adjust_val);
 }
 
-template <size_t N>
-constexpr double sharpe_ratio(const std::array<double, N>& balance, double risk_free_rate, double period_year_count) {
+template <int N>
+constexpr double sharpe_ratio(const double (&balance)[N], double risk_free_rate, double period_year_count) {
     // Calculate the returns
     // const int return_size = balance.size()-1;
     constexpr int return_size = N-1;

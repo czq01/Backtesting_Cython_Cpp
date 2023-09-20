@@ -13,6 +13,12 @@
 #define CACHE_LINE_SIZE 64
 #define _CACHE_ALIGN alignas(CACHE_LINE_SIZE)
 
+#if CUDA_ENABLE
+#include <cuda_runtime.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#endif
+
 /* Fast Find if Main Contract Changed. */
 class ChangeMain {
     const char (*change)[11];
@@ -37,6 +43,10 @@ public:
     std::string get_next_date() {
         return std::string(*change);
     }
+
+    void get_next_date(char *p) {
+        memcpy((void*)*p, (void*)*change, 10);
+    }
 };
 
 class Series_plus {
@@ -50,53 +60,40 @@ private:
     _KeyArray *cols;
     _IdxMap* col_mapping;
 
-    void _update_values() {
-        this->open = this->_get("open");
-        this->close = this->_get("close");
-        this->high = this->_get("high");
-        this->low = this->_get("low");
-        this->hour = (this->datetime[11]-48)*10 + this->datetime[12]-48;
-        this->minute = (this->datetime[14]-48)*10 + this->datetime[15]-48;
-    }
+    Series_plus(const _String& datetime, const _String& date,
+                const _String& symbol, _Array &&params,
+                _KeyArray * cols, _IdxMap* col_mapping = 0) :
+        col_mapping(col_mapping),
+        date(date), datetime(datetime), symbol(symbol),
+        cols(cols), params(std::forward<_Array&&>(params)) {}
 
-    double _get(const std::string& key) const {
+    friend class DataFrame;
+
+public:
+    _String datetime, date, symbol;
+
+    Series_plus() {}
+
+    double get_val(const std::string& key) const {
         if (this->col_mapping->count(key)) {
             return this->params.at(col_mapping->at(key));
         } else {
             throw std::invalid_argument("[get_index] Key not exist in Series.");
         }
     }
-
-    Series_plus(const _String& datetime, const _String& date,
-                const _String& symbol, _Array &&params,
-                _KeyArray * cols, _IdxMap* col_mapping = 0) :
-        col_mapping(col_mapping),
-        date(date), datetime(datetime), symbol(symbol),
-        cols(cols), params(std::forward<_Array&&>(params)) {
-        this->_update_values();
-    }
-
-    friend class DataFrame;
-
-public:
-    _String date, datetime, symbol;
-    double open, close;
-    double high, low;
-    int hour, minute;
-    Series_plus() {}
-    Series_plus(const _String& symbol):
-        symbol(symbol) {}
 };
+
 
 class DataFrame {
     typedef std::string _String;
     typedef std::vector<double> _Array;
     typedef std::vector<_String> _KeyArray;
     typedef std::unordered_map<_String, int> _IdxMap;
+    typedef std::vector<Series_plus> _ValArray;
 
     _IdxMap _CACHE_ALIGN col_mapping;
     _KeyArray _CACHE_ALIGN cols;
-    std::vector<Series_plus> _CACHE_ALIGN series;
+    _ValArray _CACHE_ALIGN series;
 public:
     DataFrame() {} // Do Not Call in C++ !!! Cython Only
 
@@ -127,6 +124,37 @@ public:
     constexpr size_t size() const {return series.size();}
 };
 
+
+class BarData {
+public:
+    char date[11] {0};
+    char datetime[20] {0};
+    char symbol[18] {0};
+    double open, close;
+    double high, low;
+    int hour, minute;
+
+    BarData(const Series_plus& sr):
+        open(sr.get_val("open")), close(sr.get_val("close")), high(sr.get_val("high")),
+        low(sr.get_val("low")),hour(sr.get_val("hour")), minute(sr.get_val("minute")) {
+        memcpy(date, sr.date.data(), 10);
+        memcpy(datetime, sr.datetime.data(), 19);
+        memcpy(symbol, sr.symbol.data(), std::min(sr.symbol.size()+1, 16ull));
+    }
+
+    BarData(const char syb[16]) {
+        memcpy(symbol, syb, 16);
+    }
+
+    BarData(const char syb[16], const char datetime[19]) {
+        memcpy(this->symbol, syb, 16);
+        memcpy(this->datetime, datetime, 19);
+        memcpy(this->date, datetime, 10);
+    }
+
+};
+
+
 // ---------------------------------------
 // **************************************
 // *** Data Array Manage Classes *****
@@ -156,7 +184,12 @@ class SingleArrayManager {
         int val = *static_cast<int*>(this->_subcls_update_func);
         void * new_sub_arr;
         if (!(val&0b1)) {
+            // For cuda use
+#if CUDA_ENABLE
+            cudaMalloc(&new_sub_arr, ArrMgr_SubSize(val?val<<1: 2));
+#else
             new_sub_arr = new char[ArrMgr_SubSize(val?val<<1: 2)];
+#endif
             memcpy(new_sub_arr, this->_subcls_update_func, ArrMgr_SubSize(val));
         } else {
             new_sub_arr = this->_subcls_update_func;
@@ -167,7 +200,12 @@ class SingleArrayManager {
         *reinterpret_cast<std::function<void()>**>((char *) new_sub_arr + length) = func;
 
         *(int *)new_sub_arr = val;
+        // for cuda free memory
+#if CUDA_ENABLE
+        cudaFree(this->_subcls_update_func);
+#else
         delete [] this->_subcls_update_func;
+#endif
         this->_subcls_update_func = new_sub_arr;
     }
 
@@ -221,12 +259,12 @@ public:
         else return closes[pointer-offset+max_size];
     }
 
-    constexpr void update_bar(const Series_plus& bar) {
+    constexpr void update_bar(const BarData& bar) {
         size++; pointer++;
-        if (pointer == max_size) [[unlikely]] {pointer=0;}
+        if (pointer == max_size) [[unlikely]] {pointer=0;is_inited=true;}
         if (is_inited) [[likely]] {
             sum-=closes[pointer];
-            sum_square -= bar.close*bar.close;
+            sum_square -= closes[pointer]*closes[pointer];
             size--;
         }
         closes[pointer] = bar.close;
@@ -234,7 +272,6 @@ public:
         sum_square += bar.close*bar.close;
         high = std::max(bar.high, high);
         low = std::min(bar.low, low);
-        if (pointer==max_size-1) {is_inited=true;}
         this->_update_child();
     };
 
@@ -253,19 +290,22 @@ public:
         return _sum/n;
     }
 
-    constexpr double get_std() {return sqrt_const(sum_square/(max_size-1));}
+    constexpr double get_std() {
+        return sqrt_const((sum_square - get_mean()*sum)/(max_size-1));
+    }
 
-    constexpr double get_std(int offset, int N) {
+    constexpr double get_std(int N, int offset=0) {
         double _sum_sq = 0;
         int _p = this->pointer;
-        int n=N+1;
         while (offset) {_p--;offset--;}
+        int n = N;
         while (N) {
             if (_p<0) {_p+= this->max_size;}
-            _sum_sq += this->closes[_p];
+            _sum_sq += this->closes[_p]*this->closes[_p];
             N--; _p--;
         }
-        return sqrt_const(_sum_sq/n);
+        int mean = get_mean(n, offset);
+        return sqrt_const((_sum_sq - mean*mean*n)/(n-1));
     }
 
     ~SingleArrayManager() {
@@ -283,7 +323,11 @@ public:
 
 class ArrayManager {
 private:
+#if CUDA_ENABLE
+    // TODO
+#else
     std::unordered_map<std::string_view, SingleArrayManager> ams;
+#endif
     void * _update_func;
 
     void onNewSymbol(const std::string_view& symbol) {
@@ -338,7 +382,7 @@ public:
         return *this;
     }
 
-    void update_bar(const Series_plus& bar) {
+    void update_bar(const BarData& bar) {
         if (!ams.count(bar.symbol)) {
             ams[bar.symbol] = SingleArrayManager(max_size);
             this->onNewSymbol(bar.symbol);
@@ -364,6 +408,10 @@ public:
 
     ~ArrayManager() {
         delete [] _update_func;
+    }
+
+    bool is_inited(const std::string_view& domain) const {
+        return this->ams.at(domain).is_inited;
     }
 
     template <class T> friend class _Index_Calculator;
@@ -401,11 +449,7 @@ public:
 // MACD Calculators
 class SingleCalculator_MACD: public _Base_Index_Calculator<SingleCalculator_MACD> {
 private:
-    struct _MACDType {
-        double MACD;
-        double DIF;
-        double DEA;
-    };
+    struct _MACDType {double MACD,DIF,DEA;};
 
     int _fast;
     int _slow;
@@ -457,7 +501,6 @@ public:
     constexpr _MACDType get_val() {return {_MACD, _DIF, _DEA};}
 };
 
-
 struct OutcomeTuple {
     int pos;
     double fee;
@@ -502,9 +545,12 @@ public:
     }
 };
 
+
+
+
+
+
 typedef _Index_Calculator<SingleCalculator_MACD> Calculator_MACD;
-
-
 
 typedef std::vector<double> DoubleArr;
 typedef std::vector<std::vector<double>> double_2D_Arr;

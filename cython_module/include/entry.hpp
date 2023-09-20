@@ -9,18 +9,31 @@
 #undef min
 
 
-// Entry: (no df)
-void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>& params,
-            std::vector<OutcomeTuple>& outcomes, double years, int start, int end) noexcept {
-    std::array<double, 16U> _CACHE_ALIGN ratio_vec;
-    Strategy st;
+std::vector<BarData> barFromDataframe(const DataFrame& cdata) {
+    std::vector<BarData> result;
+    for (auto&& i: cdata.values()) {
+        result.emplace_back(BarData{i.symbol.data(), i.datetime.data()});
+        result.back().close = i.get_val("close");
+        result.back().high = i.get_val("high");
+        result.back().low = i.get_val("low");
+        result.back().open = i.get_val("open");
+        result.back().hour = (i.datetime[11]-48)*10 + i.datetime[12]-48;
+        result.back().minute = (i.datetime[14]-48)*10 + i.datetime[15]-48;
+    }
+    return result;
+}
 
+// Entry: (no df  CPU)
+void backtest_threads_no_df(const std::vector<BarData>& cdata, const std::vector<PyObject*>& params,
+            std::vector<OutcomeTuple>& outcomes, double years, int start, int end) noexcept {
+    double _CACHE_ALIGN ratio_vec[32];
+    Strategy st;
     for (int i=start; i<end; i++) {
         st.renew(params[i]);
         double max_drawdown=0;
         int count=0;
-        auto iter = cdata.values().cbegin();
-        auto end = cdata.values().cend();
+        auto iter = cdata.cbegin();
+        auto end = cdata.cend();
 
         // Pre-loading data for technical idnex
         while (iter!=end && !st.loading_data(*iter))
@@ -28,7 +41,7 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>
         ++iter; ++count;
 
         // Run backtesting
-        const int divide = (cdata.size()-count)>>4;
+        const int divide = (cdata.size()-count)>>5;
         int pos = 0;
         count = 0;
         for (;iter!=end;++iter) {
@@ -47,36 +60,49 @@ void backtest_threads_no_df(const DataFrame& cdata, const std::vector<PyObject*>
     }
 }
 
+
 void run_backtest_no_df(const DataFrame& cdata, const std::vector<PyObject*>& params,
             std::vector<OutcomeTuple>& outcomes, const double& years) noexcept {
-    constexpr int THREAD_NUM=16;
+#if CUDA_ENABLE
+    thrust::host_vector<BarData> bar_data = barFromDataframe(cdata)
+#else
+    constexpr int THREAD_NUM=12;
+    std::vector<BarData> bar_data = barFromDataframe(cdata);
     outcomes.resize(params.size());
-    // Py_BEGIN_ALLOW_THREADS
     std::vector<std::thread> _CACHE_ALIGN ths;
     int divide_len = (params.size())/THREAD_NUM;
     int mod_len = (params.size() - divide_len*THREAD_NUM);
     int start=0;
     divide_len++;
     for (int i=0; i<mod_len; i++) {
-        ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(cdata),
+        ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(bar_data),
                 std::ref(params), std::ref(outcomes), years, start, start+divide_len));
         start += divide_len;
     }
     divide_len--;
     for (int i=mod_len; i<THREAD_NUM; i++) {
-        ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(cdata),
+        ths.emplace_back(std::thread(backtest_threads_no_df, std::ref(bar_data),
                 std::ref(params), std::ref(outcomes), years, start, start+divide_len));
                 start += divide_len;
     }
 
-    // backtest_threads_no_df(cdata, params, outcomes, years, 0, params.size());
     for (std::thread& i: ths) {
         i.join();
     }
-    // Py_END_ALLOW_THREADS
-    // printf("out backtest\n");
+
+#endif
 }
 
+
+
+
+
+void run_backtest_no_df_cuda(const DataFrame& cdata, const std::vector<PyObject*>& params,
+            std::vector<OutcomeTuple>& outcomes, const double& years) {
+
+
+
+}
 
 
 

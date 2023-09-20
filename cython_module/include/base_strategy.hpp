@@ -4,36 +4,38 @@
 #include <type_traits>
 #include <Python.h>
 
+class BarData;
+
 template <class Child>
 class BaseStrategy {
 private:
-    void _make_order(const Series_plus& record) noexcept {
+    void _make_order(const BarData& record) noexcept {
         if (!this->pos) {
             if (this->short_sig) {
-                static_cast<Child*>(this)->on_trade(-1, record);
+                this->on_trade(-1, record);
             } else if (this->buy_sig) {
-                static_cast<Child*>(this)->on_trade(1, record);
+                this->on_trade(1, record);
             }
         }
         else if (this->pos>0) {
             if (this->short_sig) {
-                static_cast<Child*>(this)->on_trade(0, record);
-                static_cast<Child*>(this)->on_trade(-1, record);
+                this->on_trade(0, record);
+                this->on_trade(-1, record);
             }
             else if (this->sell_sig) {
-                static_cast<Child*>(this)->on_trade(0, record);
+                this->on_trade(0, record);
             }
         } else {
             if (this->buy_sig) {
-                static_cast<Child*>(this)->on_trade(0, record);
-                static_cast<Child*>(this)->on_trade(1, record);
+                this->on_trade(0, record);
+                this->on_trade(1, record);
             } else if (this->cover_sig) {
-                static_cast<Child*>(this)->on_trade(0, record);
+                this->on_trade(0, record);
             }
         }
     }
 
-    void _manage_pos(const Series_plus& bar) noexcept {
+    void _manage_pos(const BarData& bar) noexcept {
         this->earn += static_cast<double>(this->pos*20)*(bar.close-this->_last_price);
         this->balance = this->earn-this->fee-this->slip+this->earn_change;
         this->_max_balance = std::max(this->balance, this->_max_balance);
@@ -79,10 +81,10 @@ public:
     // treat it as Construction Function.
     void child_renew() noexcept {}
 
-    void manage_pos(const Series_plus& bar) noexcept {}
+    void manage_pos(const BarData& bar) noexcept {}
 
     // You can use this, or just simply define function with same signature in Child to hide this.
-    void on_bar(const Series_plus& record) noexcept{
+    void on_bar(const BarData& record) noexcept{
         this->_manage_pos(record);
         if (static_cast<Child*>(this)->is_domain_change(record)) {
             return static_cast<Child*>(this)->on_domain_change(record);
@@ -92,20 +94,29 @@ public:
         static_cast<Child*>(this)->get_next_min_bounds(record);
     }
 
-    void on_domain_change(const Series_plus& record) noexcept {
+    void on_trade(int target,const BarData& bar) noexcept {
+        int volume = abs(target-this->pos);
+        this->fee += volume*8.01;
+        this->slip += volume*20;
+        this->earn += static_cast<double>(this->pos*20)*(bar.close-this->_last_price);
+        this->pos = target;
+        static_cast<Child*>(this)->on_trade(target, bar);
+    }
+
+    void on_domain_change(const BarData& record) noexcept {
         this->on_trade(0, record);
         this->sell_sig = this->cover_sig = pos>0;
         this->cover_sig = this->sell_sig = pos<0;
     }
 
     // Check if it is time for Domain Contract Changes.
-    bool is_domain_change(const Series_plus&) {
+    bool is_domain_change(const BarData&) {
         return false;
     }
 
     // Load Sufficient Data Before calling on_bar (Usually for calculate bounds)
     // Return false to stop loading process and proceed to on_bar
-    bool loading_data(const Series_plus&) noexcept {return false;}
+    bool loading_data(const BarData&) noexcept {return false;}
 
     template <class ...Args>
     void set_params(Args ...args) noexcept {}
@@ -113,11 +124,11 @@ public:
     template <> // PyListObject * ONLY
     void set_params(PyObject* args) noexcept {}
 
-    void get_next_min_bounds(const Series_plus& record) noexcept {}
+    void get_next_min_bounds(const BarData& record) noexcept {}
 
-    void get_sig(const Series_plus& record) noexcept {}
+    void get_sig(const BarData& record) noexcept {}
 
-    void on_trade(int target,const Series_plus& record) noexcept {}
+
 };
 
 #endif
