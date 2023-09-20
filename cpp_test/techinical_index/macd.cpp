@@ -6,7 +6,7 @@
 BarData get_fake_data(int price, int idx, std::string syb="SA2309.XZCE") {
     std::string datetime="2023-01-01 12:12:12", date="2023-01-01";
     std::string symbol = syb;
-    BarData p(symbol.c_str());
+    BarData p(symbol.c_str(), datetime.c_str());
     p.close = price+idx*idx;
     p.high = price + 5;
     p.low = price-5;
@@ -31,7 +31,6 @@ void test_one() {
 }
 
 void test_two() {
-    double a = NAN;
     SingleArrayManager p(45);
     SingleCalculator_MACD macd_cal(p);
     for (int i=0; i<60; i++) {
@@ -44,11 +43,24 @@ void test_two() {
     }
 }
 
+void test_three() {
+    SingleIndexManager<SingleCalculator_MACD_t> p(40, 12, 26);
+    for (int i=0; i<60; i++) {
+        BarData sr = get_fake_data(2350, i);
+        p.update_bar(sr);
+        if (p.is_inited()) {
+            auto&&[MACD, DIF, DEA] = p.get_MACD();
+            printf("%d, %lf, %lf, %lf\n", i, MACD, DIF, DEA);
+        }
+    }
+}
 
 int main() {
     printf("test1 on one symbols:\n");
     test_one();
     printf("test2 on Several symbols:\n");
     test_two();
+    printf("test3 on New Index Class: \n");
+    test_three();
     return 0;
 }

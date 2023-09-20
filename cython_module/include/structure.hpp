@@ -19,6 +19,232 @@
 #include <thrust/device_vector.h>
 #endif
 
+// ---------------------------------------
+// **************************************
+// ********** Single Structure ***********
+// **************************************
+
+class SingleArrayManager_t {
+    int pointer;
+    double * closes;
+    double sum;
+    double sum_square;
+public:
+    bool array_inited;
+    int max_size;
+    int size;
+    double high;
+    double low;
+
+    SingleArrayManager_t(int size=0):
+        max_size(size), closes(new double[size]), pointer(-1), array_inited(false),
+        sum(0), sum_square(0), size(0), high(-INFINITY), low(INFINITY) {}
+
+    SingleArrayManager_t(const SingleArrayManager_t&) = delete;
+
+    SingleArrayManager_t(SingleArrayManager_t&& am):
+        max_size(am.max_size), pointer(am.pointer), array_inited(am.array_inited),
+        sum(am.sum), sum_square(am.sum_square), high(am.high), low(am.low),
+        size(am.size) {
+        double * _tmp_close = closes;
+        closes = am.closes;
+        am.closes = _tmp_close;
+    }
+
+    SingleArrayManager_t& operator=(const SingleArrayManager_t &) = delete;
+
+    SingleArrayManager_t& operator=(SingleArrayManager_t && am) {
+        max_size = am.max_size;
+        pointer = am.pointer;
+        array_inited = am.array_inited;
+        sum = am.sum;
+        sum_square = am.sum_square;
+        double * tmp = closes;
+        closes = am.closes;
+        am.closes = tmp;
+        return *this;
+    }
+
+    constexpr double get_close() {return this->closes[this->pointer];}
+
+    constexpr double get_close(const int offset) {
+        if (pointer>=offset) return closes[pointer-offset];
+        else return closes[pointer-offset+max_size];
+    }
+
+    constexpr void update_bar(const BarData& bar) {
+        size++; pointer++;
+        if (pointer == max_size) [[unlikely]] {pointer=0;array_inited=true;}
+        if (array_inited) [[likely]] {
+            sum-=closes[pointer];
+            sum_square -= closes[pointer]*closes[pointer];
+            size--;
+        }
+        closes[pointer] = bar.close;
+        sum += bar.close;
+        sum_square += bar.close*bar.close;
+        high = std::max(bar.high, high);
+        low = std::min(bar.low, low);
+    };
+
+    constexpr double get_mean() {return sum/size;}
+
+    constexpr double get_mean(int N, int offset=0) {
+        double _sum = 0;
+        int _p = this->pointer;
+        int n = std::min(N, size-offset);
+        N = n;
+        while (offset) {_p--; offset--;}
+        while (N) {
+            if (_p<0) {_p+= this->max_size;}
+            _sum += this->closes[_p];
+            N--; _p--;
+        }
+        return _sum/n;
+    }
+
+    constexpr double get_std() {
+        return sqrt_const((sum_square - get_mean()*sum)/(size-1));
+    }
+
+    constexpr double get_std(int N, int offset=0) {
+        double _sum_sq = 0;
+        int _p = this->pointer;
+        int n = std::min(N, size-offset);
+        N = n;
+        while (offset) {_p--;offset--;}
+        while (N) {
+            if (_p<0) {_p+= this->max_size;}
+            _sum_sq += this->closes[_p]*this->closes[_p];
+            N--; _p--;
+        }
+        int mean = get_mean(n, offset);
+        return sqrt_const((_sum_sq - mean*mean*n)/(n-1));
+    }
+
+    ~SingleArrayManager_t() {
+        delete [] closes;
+    }
+};
+
+class SingleCalculator_MACD_t: public virtual SingleArrayManager_t {
+private:
+    struct _MACDType {double MACD,DIF,DEA;};
+    int _fast;
+    int _slow;
+    int _count;
+    double _EMA_fast;
+    double _EMA_slow;
+    double _MACD;
+    double _DEA;
+    double _DIF;
+public:
+    bool inited;
+    typedef _MACDType _IndexReturnType;
+
+    SingleCalculator_MACD_t(int fast, int slow):
+        _fast(fast), _slow(slow), _count(1), _DEA(0), inited(false),
+        _EMA_fast(NAN), _EMA_slow(NAN), _MACD(NAN), _DIF(NAN) {}
+
+    void update() {
+        if (this->inited) [[likely]] {
+            _EMA_fast = (_EMA_fast*(_fast-1)+2*this->get_close())/(_fast+1);
+            _EMA_slow = (_EMA_slow*(_slow-1)+2*this->get_close())/(_slow+1);
+            _DIF = _EMA_fast-_EMA_slow;
+            _MACD = (_MACD*8 + _DIF*2)/10;
+            _DEA = _DIF - _MACD;
+            return;
+        }
+        if (std::isnan(_EMA_fast)) [[unlikely]] {
+            _EMA_fast = this->get_mean(_fast);
+            _EMA_slow = this->get_mean(_slow);
+            _DIF = _EMA_fast - _EMA_slow;
+        } else [[likely]] {
+            _EMA_fast = (_EMA_fast*(_fast-1)+2*this->get_close())/(_fast+1);
+            _EMA_slow = (_EMA_slow*(_slow-1)+2*this->get_close())/(_slow+1);
+            _count++;
+            if (_count < 9) {
+                _DIF += _EMA_fast-_EMA_slow;
+            } else {
+                _DIF += _EMA_fast-_EMA_slow;
+                _MACD = _DIF/9;
+                _DIF = _EMA_fast-_EMA_slow;
+                _DEA = _DIF-_MACD;
+                inited = true;
+            }
+        }
+    }
+
+    constexpr _MACDType get_MACD() {return {_MACD, _DIF, _DEA};}
+};
+
+class SingleCalculator_RSI: public virtual SingleArrayManager_t {
+    int _period;
+public:
+    SingleCalculator_RSI(int period):
+        _period(period) {}
+};
+
+
+// ---------------------------------------
+// **************************************
+// ********** Union Structure ***********
+// **************************************
+
+template <class ..._IndexType> requires(std::is_base_of_v<SingleArrayManager_t, _IndexType> && ...)
+class SingleIndexManager;
+
+template <>
+class SingleIndexManager<>: public SingleArrayManager_t {
+    SingleIndexManager(int size):
+        SingleArrayManager_t(size) {}
+};
+
+// typedef SingleIndexManager<> ArrayMgr;
+
+template<class ..._IndexType> requires(std::is_base_of_v<SingleArrayManager_t, _IndexType> && ...)
+class SingleIndexManager: public _IndexType... {
+
+    template <class Arg>
+    constexpr bool _is_inited() { return Arg::inited; }
+
+    template <class Arg1, class ...Args> requires (sizeof...(Args)!=0)
+    constexpr bool _is_inited() { return Args::inited && _is_inited<Args...>; }
+
+    template <class Arg1, class ...Args>
+    void _update_bar() {
+        Arg1::update();
+        if constexpr(sizeof...(Args)) _update_bar<Args...>();
+    }
+
+public:
+    template <class ...Args>
+    SingleIndexManager(int max_length, Args ...args):
+        SingleArrayManager_t(max_length), _IndexType(args...)... {}
+
+    constexpr void update_bar(const BarData& bar) {
+        SingleArrayManager_t::update_bar(bar);
+        this->_update_bar<_IndexType...>();
+    }
+
+    constexpr bool is_inited() {
+        return SingleArrayManager_t::array_inited && _is_inited<_IndexType...>();
+    }
+
+};
+
+template <class ...Args>
+SingleIndexManager(Args...) -> SingleIndexManager<>;
+
+
+
+
+// ---------------------------------------
+// **************************************
+// *********** Util Classes *************
+// **************************************
+
+
 /* Fast Find if Main Contract Changed. */
 class ChangeMain {
     const char (*change)[11];
@@ -215,12 +441,11 @@ public:
     int size;
     double high;
     double low;
-    double open_interest;
 
     SingleArrayManager(int size=0):
         max_size(size), closes(new double[size]), pointer(-1), is_inited(false),
         sum(0), sum_square(0), size(0), high(-INFINITY), low(INFINITY),
-        open_interest(0), _subcls_update_func(new char[ArrMgr_SubSize(0)]) {
+         _subcls_update_func(new char[ArrMgr_SubSize(0)]) {
             *(int *)_subcls_update_func = 0;
         }
 
@@ -229,7 +454,7 @@ public:
     SingleArrayManager(SingleArrayManager&& am):
         max_size(am.max_size), pointer(am.pointer), is_inited(am.is_inited),
         sum(am.sum), sum_square(am.sum_square), high(am.high), low(am.low),
-        size(am.size), open_interest(am.open_interest) {
+        size(am.size) {
         double * _tmp_close = closes;
         closes = am.closes;
         am.closes = _tmp_close;
@@ -450,7 +675,6 @@ public:
 class SingleCalculator_MACD: public _Base_Index_Calculator<SingleCalculator_MACD> {
 private:
     struct _MACDType {double MACD,DIF,DEA;};
-
     int _fast;
     int _slow;
     int _count;
@@ -549,8 +773,8 @@ public:
 
 
 
-
 typedef _Index_Calculator<SingleCalculator_MACD> Calculator_MACD;
+
 
 typedef std::vector<double> DoubleArr;
 typedef std::vector<std::vector<double>> double_2D_Arr;
