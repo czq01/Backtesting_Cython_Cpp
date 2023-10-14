@@ -1,5 +1,5 @@
-#ifndef __UTIL_OWN
-#define __UTIL_OWN
+#ifndef __CZQ01_MATH_FUNC
+#define __CZQ01_MATH_FUNC
 #include <type_traits>
 #include <chrono>
 #include <algorithm>

@@ -1,7 +1,6 @@
 #ifndef __ENTRY_HPP__
 #define __ENTRY_HPP__
 #include "strategy.hpp"
-#include "structure.hpp"
 #include <iostream>
 #include <thread>
 #include <Windows.h>
@@ -95,16 +94,10 @@ void run_backtest_no_df(const DataFrame& cdata, const std::vector<PyObject*>& pa
 
 
 
+// void run_backtest_no_df_cuda(const DataFrame& cdata, const std::vector<PyObject*>& params,
+//             std::vector<OutcomeTuple>& outcomes, const double& years) {
 
-
-void run_backtest_no_df_cuda(const DataFrame& cdata, const std::vector<PyObject*>& params,
-            std::vector<OutcomeTuple>& outcomes, const double& years) {
-
-
-
-}
-
-
+// }
 
 
 // Entry: (with DF)
