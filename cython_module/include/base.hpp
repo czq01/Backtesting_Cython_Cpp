@@ -113,6 +113,9 @@ using BBAND = Calculator_BollingBand;
 template <typename ..._IndexType>
 using ArrayManager = MultiSyb_IndexManager<_IndexType...>;
 
+template <typename ..._IndexType>
+using SingleArrayManager = IndexManager<_IndexType...>
+
 
 // for Cython Intelligence Lightlight Use
 typedef std::vector<double> DoubleArr;

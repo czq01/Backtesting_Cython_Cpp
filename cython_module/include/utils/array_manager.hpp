@@ -52,12 +52,15 @@ public:
     ParamsMap(int size): size(size) {}
 };
 
+template <typename ..._IndexTypes>
+ParamsMap(_IndexTypes...) -> ParamsMap<_IndexTypes...>;
+
 // ---------------------------------------
 // **************************************
 // ***** Technical Index Structure ******
 // **************************************
 
-class SingleArrayManager {
+class PriceArray {
     int pointer;
     double * closes;
     double sum;
@@ -69,13 +72,13 @@ public:
     double high;
     double low;
 
-    SingleArrayManager(int size=0):
+    PriceArray(int size=0):
         max_size(size), closes(new double[size]), pointer(-1), array_inited(false),
         sum(0), sum_square(0), size(0), high(-INFINITY), low(INFINITY) {}
 
-    SingleArrayManager(const SingleArrayManager&) = delete;
+    PriceArray(const PriceArray&) = delete;
 
-    SingleArrayManager(SingleArrayManager&& am):
+    PriceArray(PriceArray&& am):
         max_size(am.max_size), pointer(am.pointer), array_inited(am.array_inited),
         sum(am.sum), sum_square(am.sum_square), high(am.high), low(am.low),
         size(am.size) {
@@ -84,9 +87,9 @@ public:
         am.closes = _tmp_close;
     }
 
-    SingleArrayManager& operator=(const SingleArrayManager &) = delete;
+    PriceArray& operator=(const PriceArray &) = delete;
 
-    SingleArrayManager& operator=(SingleArrayManager && am) {
+    PriceArray& operator=(PriceArray && am) {
         max_size = am.max_size;
         pointer = am.pointer;
         array_inited = am.array_inited;
@@ -155,12 +158,12 @@ public:
         return sqrt_const((_sum_sq - mean*mean*n)/(n-1));
     }
 
-    ~SingleArrayManager() {
+    ~PriceArray() {
         delete [] closes;
     }
 };
 
-class Calculator_MACD: public virtual SingleArrayManager {
+class Calculator_MACD: public virtual PriceArray {
 protected:
     int _fast;
     int _slow;
@@ -219,7 +222,7 @@ public:
     constexpr _ParamType get_param() {return {_fast, _slow};}
 };
 
-class Calculator_RSI: public virtual SingleArrayManager {
+class Calculator_RSI: public virtual PriceArray {
 protected:
     int _period;
     int _count;
@@ -261,7 +264,7 @@ public:
     constexpr _ParamType get_param() {return {_period};}
 };
 
-class Calculator_BollingBand: public virtual SingleArrayManager {
+class Calculator_BollingBand: public virtual PriceArray {
     int _N;
     int _count;
     double _K;
@@ -302,7 +305,7 @@ public:
 // **************************************
 
 // Single Symbol IndexManger
-template <class ..._IndexType> requires (std::is_base_of_v<SingleArrayManager,_IndexType> && ...)
+template <class ..._IndexType> requires (std::is_base_of_v<PriceArray,_IndexType> && ...)
 class IndexManager: public _IndexType... {
 
     template <typename _Type, typename ..._Rest>
@@ -313,19 +316,19 @@ class IndexManager: public _IndexType... {
 
 public:
     IndexManager(int size, _IndexType && ...instances):
-        SingleArrayManager(size) ,_IndexType(std::forward<_IndexType>(instances)) ... {}
+        PriceArray(size) ,_IndexType(std::forward<_IndexType>(instances)) ... {}
 
     template<typename ...T> requires (std::is_convertible_v<T, _IndexType> && ...)
     IndexManager(int size, T ...val):
-        SingleArrayManager(size), _IndexType(val) ... {}
+        PriceArray(size), _IndexType(val) ... {}
 
     IndexManager(const ParamsMap<_IndexType...>& params):
-        SingleArrayManager(params.size), _IndexType(params.get_val<_IndexType>()) ...{}
+        PriceArray(params.size), _IndexType(params.get_val<_IndexType>()) ...{}
 
     IndexManager& operator=(const IndexManager&) = delete;
 
     void update_bar(const BarData& bar) {
-        SingleArrayManager::update_bar(bar);
+        PriceArray::update_bar(bar);
         this->_updateIndexes<_IndexType...>();
     }
 
@@ -340,31 +343,34 @@ public:
     }
 
     constexpr bool is_inited() {
-        return SingleArrayManager::array_inited && (_IndexType::inited && ...);
+        return PriceArray::array_inited && (_IndexType::inited && ...);
     }
 
 };
 
 template <>
-class IndexManager<>: public SingleArrayManager {
+class IndexManager<>: public PriceArray {
 public:
 
     IndexManager() = delete;
 
     IndexManager(int max_length):
-        SingleArrayManager(max_length) {}
+        PriceArray(max_length) {}
 
-    IndexManager(SingleArrayManager && am):
-        SingleArrayManager(std::forward<SingleArrayManager>(am)) {}
+    IndexManager(PriceArray && am):
+        PriceArray(std::forward<PriceArray>(am)) {}
 
     constexpr bool is_inited() {return this->array_inited;}
 };
+
+template <class ..._IndexType>
+IndexManager(_IndexType...) -> IndexManager<_IndexType...>;
 
 
 
 // Multi-symbol IndexManager
 template <typename ..._IndexTypes> requires (
-    std::is_base_of_v<SingleArrayManager, _IndexTypes> && ...)
+    std::is_base_of_v<PriceArray, _IndexTypes> && ...)
 class MultiSyb_IndexManager {
     using _SybMapType=std::unordered_map<std::string, IndexManager<_IndexTypes...>>;
 
@@ -410,7 +416,6 @@ public:
     }
 
 };
-
 
 template <class ..._IndexType>
 MultiSyb_IndexManager(_IndexType...) -> MultiSyb_IndexManager<_IndexType...>;
