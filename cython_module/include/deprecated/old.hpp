@@ -1,159 +1,4 @@
-#ifndef __CZQ_STRUCTURE__
-#define __CZQ_STRUCTURE__
-#include <vector>
-#include <string>
-#include <array>
-#include <unordered_map>
-#include <Python.h>
-#include <stdexcept>
-#include <algorithm>
-#include <numeric>
-#include <functional>
-#include "util.hpp"
-#define CACHE_LINE_SIZE 64
-#define _CACHE_ALIGN alignas(CACHE_LINE_SIZE)
-
-#if CUDA_ENABLE
-#include <cuda_runtime.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
-#endif
-
-/* Fast Find if Main Contract Changed. */
-class ChangeMain {
-    const char (*change)[11];
-public:
-
-    ChangeMain(const char (*SA_change)[11]): change(SA_change) {}
-
-    ChangeMain& operator=(ChangeMain&& obj) {
-        this->change = obj.change;
-        return *this;
-    }
-
-    bool is_change(const std::string& val) {
-        bool flag = (val.size()==10)&&(
-                (val[3]==(*change)[3])&&(val[5]==(*change)[5])&&(val[6]==(*change)[6])
-                        &&(val[8]==(*change)[8])&&(val[9]==(*change)[9]));
-        // time is moving at one direction
-        change += flag;
-        return flag;
-    }
-
-    std::string get_next_date() {
-        return std::string(*change);
-    }
-
-    void get_next_date(char *p) {
-        memcpy((void*)*p, (void*)*change, 10);
-    }
-};
-
-class Series_plus {
-private:
-    typedef std::string _String;
-    typedef std::vector<double> _Array;
-    typedef std::vector<_String> _KeyArray;
-    typedef std::unordered_map<_String, int> _IdxMap;
-
-    _Array _CACHE_ALIGN params;
-    _KeyArray *cols;
-    _IdxMap* col_mapping;
-
-    Series_plus(const _String& datetime, const _String& date,
-                const _String& symbol, _Array &&params,
-                _KeyArray * cols, _IdxMap* col_mapping = 0) :
-        col_mapping(col_mapping),
-        date(date), datetime(datetime), symbol(symbol),
-        cols(cols), params(std::forward<_Array&&>(params)) {}
-
-    friend class DataFrame;
-
-public:
-    _String datetime, date, symbol;
-
-    Series_plus() {}
-
-    double get_val(const std::string& key) const {
-        if (this->col_mapping->count(key)) {
-            return this->params.at(col_mapping->at(key));
-        } else {
-            throw std::invalid_argument("[get_index] Key not exist in Series.");
-        }
-    }
-};
-
-
-class DataFrame {
-    typedef std::string _String;
-    typedef std::vector<double> _Array;
-    typedef std::vector<_String> _KeyArray;
-    typedef std::unordered_map<_String, int> _IdxMap;
-    typedef std::vector<Series_plus> _ValArray;
-
-    _IdxMap _CACHE_ALIGN col_mapping;
-    _KeyArray _CACHE_ALIGN cols;
-    _ValArray _CACHE_ALIGN series;
-public:
-    DataFrame() {} // Do Not Call in C++ !!! Cython Only
-
-    DataFrame(const _KeyArray& cols): cols(cols) {
-        for (unsigned int i=0; i<this->cols.size(); i++) {
-            (col_mapping)[this->cols[i]]=i;
-        }
-    }
-
-    DataFrame(_KeyArray&& cols): cols(cols) {
-        for (unsigned int i=0; i<this->cols.size(); i++) {
-            (col_mapping)[this->cols[i]]=i;
-        }
-    }
-
-    void append(const _String& datetime, const _String& date,
-            const _String& symbol, _Array && params) {
-        series.emplace_back(Series_plus{
-            datetime, date, symbol, std::forward<_Array&&>(params),
-            &this->cols, &this->col_mapping
-        });
-    }
-
-    const std::vector<Series_plus>& values() const {
-        return series;
-    }
-
-    constexpr size_t size() const {return series.size();}
-};
-
-
-class BarData {
-public:
-    char date[11] {0};
-    char datetime[20] {0};
-    char symbol[18] {0};
-    double open, close;
-    double high, low;
-    int hour, minute;
-
-    BarData(const Series_plus& sr):
-        open(sr.get_val("open")), close(sr.get_val("close")), high(sr.get_val("high")),
-        low(sr.get_val("low")),hour(sr.get_val("hour")), minute(sr.get_val("minute")) {
-        memcpy(date, sr.date.data(), 10);
-        memcpy(datetime, sr.datetime.data(), 19);
-        memcpy(symbol, sr.symbol.data(), std::min(sr.symbol.size()+1, 16ull));
-    }
-
-    BarData(const char syb[16]) {
-        memcpy(symbol, syb, 16);
-    }
-
-    BarData(const char syb[16], const char datetime[19]) {
-        memcpy(this->symbol, syb, 16);
-        memcpy(this->datetime, datetime, 19);
-        memcpy(this->date, datetime, 10);
-    }
-
-};
-
+#include <base.hpp>
 
 // ---------------------------------------
 // **************************************
@@ -215,12 +60,11 @@ public:
     int size;
     double high;
     double low;
-    double open_interest;
 
     SingleArrayManager(int size=0):
         max_size(size), closes(new double[size]), pointer(-1), is_inited(false),
         sum(0), sum_square(0), size(0), high(-INFINITY), low(INFINITY),
-        open_interest(0), _subcls_update_func(new char[ArrMgr_SubSize(0)]) {
+         _subcls_update_func(new char[ArrMgr_SubSize(0)]) {
             *(int *)_subcls_update_func = 0;
         }
 
@@ -229,7 +73,7 @@ public:
     SingleArrayManager(SingleArrayManager&& am):
         max_size(am.max_size), pointer(am.pointer), is_inited(am.is_inited),
         sum(am.sum), sum_square(am.sum_square), high(am.high), low(am.low),
-        size(am.size), open_interest(am.open_interest) {
+        size(am.size) {
         double * _tmp_close = closes;
         closes = am.closes;
         am.closes = _tmp_close;
@@ -326,13 +170,13 @@ private:
 #if CUDA_ENABLE
     // TODO
 #else
-    std::unordered_map<std::string_view, SingleArrayManager> ams;
+    std::unordered_map<std::string, SingleArrayManager> ams;
 #endif
     void * _update_func;
 
-    void onNewSymbol(const std::string_view& symbol) {
+    void onNewSymbol(const std::string& symbol) {
         int number = (*static_cast<int*>(_update_func));
-        auto funcs = (std::function<void(const std::string_view&)>**)(static_cast<int*>(_update_func)+1);
+        auto funcs = (std::function<void(const std::string&)>**)(static_cast<int*>(_update_func)+1);
         while (number) {
             (**funcs)(symbol);
             funcs++;
@@ -340,7 +184,7 @@ private:
         }
     }
 
-    void newIndexFunc(std::function<void(const std::string_view&)>* func) {
+    void newIndexFunc(std::function<void(const std::string&)>* func) {
         int val = *(int *)(this->_update_func);
         void * new_sub_arr;
         if (!(val&0b1)) {
@@ -352,7 +196,7 @@ private:
         val++;
         // set it to func
         int length = ArrMgr_SubSize(val-1);
-        *reinterpret_cast<std::function<void(const std::string_view&)>**>((char *) new_sub_arr + length) = func;
+        *reinterpret_cast<std::function<void(const std::string&)>**>((char *) new_sub_arr + length) = func;
         *(int *)new_sub_arr = val;
         delete [] this->_update_func;
         this->_update_func = new_sub_arr;
@@ -392,17 +236,17 @@ public:
     }
 
     template <typename ...Args>
-    constexpr const double get_mean(const std::string_view& symbol, Args ...args) {
+    constexpr const double get_mean(const std::string& symbol, Args ...args) {
         return ams.at(symbol).get_mean(std::forward<Args>(args)...);
     }
 
     template <typename ...Args>
-    constexpr double get_std(const std::string_view& symbol, Args ...args) {
+    constexpr double get_std(const std::string& symbol, Args ...args) {
         return ams.at(symbol).get_std(std::forward<Args>(args)...);
     }
 
     template <typename ...Args>
-    constexpr double get_close(const std::string_view& symbol, Args ...args) {
+    constexpr double get_close(const std::string& symbol, Args ...args) {
         return ams.at(symbol).get_close(std::forward<Args>(args)...);
     }
 
@@ -410,7 +254,7 @@ public:
         delete [] _update_func;
     }
 
-    bool is_inited(const std::string_view& domain) const {
+    bool is_inited(const std::string& domain) const {
         return this->ams.at(domain).is_inited;
     }
 
@@ -450,7 +294,6 @@ public:
 class SingleCalculator_MACD: public _Base_Index_Calculator<SingleCalculator_MACD> {
 private:
     struct _MACDType {double MACD,DIF,DEA;};
-
     int _fast;
     int _slow;
     int _count;
@@ -501,18 +344,6 @@ public:
     constexpr _MACDType get_val() {return {_MACD, _DIF, _DEA};}
 };
 
-struct OutcomeTuple {
-    int pos;
-    double fee;
-    int slip;
-    double balance;
-    int earn;
-    double max_drawdown;
-    int earn_change;
-    double ratio;
-};
-
-
 // Multi-Technical Index Calculator
 template <class _IndexClassType>
 class _Index_Calculator {
@@ -520,42 +351,29 @@ public:
     static_assert(std::is_base_of_v<_Base_Index_Calculator<_IndexClassType>, _IndexClassType>,
                     "Must be Inherited from Base_Index_Calculator.");
 
-    std::unordered_map<std::string_view, _IndexClassType> _syb_mapper;
+    std::unordered_map<std::string, _IndexClassType> _syb_mapper;
 
     ArrayManager * _amp;
 
-    constexpr void onNewSymbol(const std::string_view& symbol) {
+    constexpr void onNewSymbol(const std::string& symbol) {
         _syb_mapper.emplace(symbol, (_amp->ams.at(symbol)));
     }
 
 public:
 
     _Index_Calculator(ArrayManager& am): _amp(&am)  {
-        auto func = new std::function<void(const std::string_view&)>(
+        auto func = new std::function<void(const std::string&)>(
             std::bind(&_Index_Calculator::onNewSymbol, this, std::placeholders::_1));
         _amp->newIndexFunc(func);
     }
 
-    constexpr bool is_inited(const std::string_view& symbol) {
+    constexpr bool is_inited(const std::string& symbol) {
         return _syb_mapper.at(symbol).is_inited;
     }
 
-    constexpr _IndexClassType::_IndexReturnType get_val(const std::string_view& symbol) {
+    constexpr _IndexClassType::_IndexReturnType get_val(const std::string& symbol) {
         return _syb_mapper.at(symbol).get_val();
     }
 };
 
-
-
-
-
-
 typedef _Index_Calculator<SingleCalculator_MACD> Calculator_MACD;
-
-typedef std::vector<double> DoubleArr;
-typedef std::vector<std::vector<double>> double_2D_Arr;
-
-// for Cython Intelligence Lightlight Use
-typedef PyObject*  _Object;
-
-#endif

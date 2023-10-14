@@ -60,15 +60,15 @@ void run(data: DataFrame, params: List[list], res_queue:__Queue, columns: Iterab
 
 ## Structure Usage
 
-Structures are defined in file [structure.hpp](./cython_module/include/structure.hpp)
+Structures are defined in file [array_manager.hpp](./cython_module/include/utils/array_manager.hpp)
 
-We have BarData, ArrayManager, MACD_Calculator for strategy use.
+We have BarData, ArrayManager for strategy use.
 
 ### ArrayManager Functions
 
-#### SingleArrayManager
+#### PriceArray
 
-SingleArrayManager is use to store sequence of BarData of one particular contract symbol. It CAN'T be copy.
+PriceArray is use to store sequence of BarData of one particular contract symbol. It CAN'T be copy.
 
 function usage:
 
@@ -85,43 +85,49 @@ constexpr double get_std(int N=max_size, int offset=0);
 
 #### ArrayManager
 
-ArrayManager is a structure that can handle multi-symbol. It has all the member functions in its Single version.
+SingleArrayManager is a structure that inherit from TechnicalIndex Classes and PriceArray. It feeded data from `void update_bar(const BarData&)` function, and calculate TechnicalIndexes automatically in O(1) Time.
 
-// We add a params `symbol` for all the functions appeared in SingleArrayManager. Here are the functions definition:
-```cpp
-template <class ...Args>
-void member_function(const std::string_view& symbol, Args ...args);
-```
+ArrayManager is a multi-symbol version of SingleArraymanager. We add a params `symbol` for all the functions appeared in SingleArrayManager except for `get_param()`. Here are the functions definition:
 
-### Technical_indexes
-
-Same as ArrayManager, we have calculators in both Single-symbol versions and Multi-symbol versions.
-
-#### Calculator_MACD
-
-SingleCalculator_MACD is use to calculate MACD. It is rely on SingleArrayManager; After construction by ArrayManager,
-It will be automatically calculating and fetch result in O(1) time.
-
-We also have a Regular Version of Calculator_MACD that hanles multiple symbols.
-
-function usage:
+The Similar part of two class:
 
 ```cpp
-// get MACD
-struct _MACDType {double MACD, DIF, DEA;};
-constexpr _MACDType get_val(const std::string_view&);
+//definition:  Add Any Index you want in template arguments.
+// Currently Support MACD, RSI, BBANDS
+// array_size should bigger than the indexes' history period.
+SingleArrayManager<MACD, RSI, ...> mgr(int array_size, {MACD params...}, {RSI params...}, ...);
+ArrayManager<MACD, RSI, ...> mgr(int array_size, {MACD params...}, {RSI params...}, ...);
+
+// feed data:
+void SingleArrayManager::update_bar(const BarData&);
+void ArrayManager::update_bar(const BarData&);
+
+// check if all Index properly inited and have valid value:
+bool SingleArrayManager::is_inited();
+bool ArrayManager::is_inited(const std::string& symbol);
+
+// fetch value of _INDEX according to the definition
+_INDEX::_ValType SingleArrayManager::get_index<_INDEX>();
+_INDEX::_ValType ArrayManager::get_index<_INDEX>(const std::string& symbol);
+
+// check the parameter of _INDEX:
+_INDEX::_ParamType SingleArrayManager::get_param<_INDEX>();
+_INDEX::_ParamType ArrayManager::get_param<_INDEX>();
 ```
 
-When use in your strategy:
+The SingleArrayManager has extra method to fetch value of indexes:
 
 ```cpp
-ArrayManager am(N);
-Calculator_MACD macd(am);
-...
-am.update(bar);
-...
-double MACD = macd.get_val(bar.symbol).MACD;
-...
-auto&& [MACD,DIF,DEA] = macd.get_val(bar.symbol);
+// if you define the SingleArrayManager like this:
+SingleArrayManager<MACD, RSI> mgr(int array_size, {MACD params...}, {RSI params...});
+
+// then we can fetch value of INDEX by:  (INDEX is listed in template argument above)
+INDEX::_ValType mgr.get_INDEX();
+
+// for example:
+RSI::_ValType mgr.get_RSI();  // is ok
+MACD::_ValType mgr.get_MACD();  // is ok
+BBAND::_ValType mgr.get_BBAND();  // wrong!! BBAND is not presented in mgr definition
 
 ```
+

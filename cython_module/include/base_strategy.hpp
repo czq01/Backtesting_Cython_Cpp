@@ -2,7 +2,7 @@
 #define __BASE_STRATEGY__
 
 #include <type_traits>
-#include <Python.h>
+#include "base.hpp"
 
 class BarData;
 
@@ -45,6 +45,7 @@ private:
     }
 
 public:
+    bool inited;
     int pos;
     double earn, earn_change, slip;
     double long_close_line, short_close_line;
